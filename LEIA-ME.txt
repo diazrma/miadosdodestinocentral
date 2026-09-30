@@ -1,0 +1,8 @@
+MIADOS CENTRAL - passo a passo
+1. Crie um repositorio no GitHub e envie estes arquivos (Add file > Upload files).
+2. Na Vercel: Add New > Project > importe o repositorio.
+3. Em Settings > Environment Variables crie:
+   IG_TOKEN = token NOVO gerado na Meta (nunca compartilhe)
+   APP_KEY  = uma senha da equipe (qualquer texto)
+4. Faca Redeploy. Abra o site, digite a senha e clique em Sincronizar.
+O token dura ~60 dias: gere outro e atualize o IG_TOKEN.
