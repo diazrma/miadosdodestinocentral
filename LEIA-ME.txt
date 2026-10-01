@@ -12,4 +12,5 @@ ANALISE POR IA (opcional, Groq)
 Variavel na Vercel: GROQ_API_KEY = chave criada em console.groq.com/keys (sem aspas). Depois, Redeploy.
 O servidor escolhe sozinho um modelo disponivel na sua conta Groq (o llama-3.3-70b-versatile foi desativado em 16/08/2026).
 NAO crie GROQ_MODEL, a menos que queira forcar um modelo especifico; se existir com um nome antigo, apague.
-No Relatorio, clique em "Gerar análise com IA". O texto entra como secao 5 e pode ser editado.
+No Relatorio, clique em "Gerar": aparece "Gerando analise com IA..." e o texto entra como secao 5 (pode ser editado).
+No Feedback, escolha a pessoa e clique em "Gerar" (se falhar, mostra a versao automatica).
