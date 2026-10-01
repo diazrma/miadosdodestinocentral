@@ -1,3 +1,4 @@
+const { auth, dbGet, dbSet } = require('../lib/db');
 const G = 'https://graph.instagram.com';
 const TIPO = { IMAGE: 'Foto', VIDEO: 'Vídeo', CAROUSEL_ALBUM: 'Carrossel' };
 async function get(p, q = {}) {
@@ -17,10 +18,10 @@ async function ins(id) {
   return {};
 }
 module.exports = async (req, res) => {
-  const K = process.env.APP_KEY;
-  if (K && req.headers['x-key'] !== K) return res.status(401).json({ erro: 'Senha incorreta' });
+  if (!(await auth(req))) return res.status(401).json({ erro: 'Faça login' });
   if (!process.env.IG_TOKEN) return res.status(500).json({ erro: 'IG_TOKEN não configurado na Vercel' });
   try {
+    if (!req.query?.force) { const c = await dbGet('cache').catch(() => null); if (c && Date.now() - c.t < 30 * 60e3) return res.json(c.d); }
     const me = await get('/me', { fields: 'username,followers_count,media_count' });
     let path = '/me/media', q = { fields: 'id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url,like_count,comments_count', limit: 50 }, items = [];
     for (let i = 0; i < 6; i++) {
@@ -48,6 +49,8 @@ module.exports = async (req, res) => {
         if (r) ns[a.toISOString().slice(0, 7)] = r.value;
       } catch (e) {}
     }
-    res.json({ perfil: me.username, seguidores: me.followers_count, posts, ns });
+    const out = { perfil: me.username, seguidores: me.followers_count, posts, ns };
+    await dbSet('cache', { t: Date.now(), d: out }).catch(() => {});
+    res.json(out);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
