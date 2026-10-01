@@ -7,3 +7,8 @@ MIADOS CENTRAL - passo a passo
 4. Redeploy. Abra o site: na primeira vez ele pede para criar o ADMINISTRADOR.
 5. Em Equipe cadastre as pessoas (com foto) e em Acessos defina o que cada perfil ve no menu.
 O token do Instagram dura ~60 dias: gere outro e atualize IG_TOKEN.
+
+ANALISE POR IA (opcional, Groq)
+Variavel na Vercel: GROQ_API_KEY = chave criada em console.groq.com/keys (sem aspas). Depois, Redeploy.
+Opcional: GROQ_MODEL (padrao llama-3.3-70b-versatile).
+No Relatorio, clique em "Gerar análise com IA". O texto entra como secao 5 e pode ser editado.
