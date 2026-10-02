@@ -292,7 +292,13 @@ async function pMontar(){const C=PB.it,mt=['video/mp4;codecs=avc1.42E01F,mp4a.40
   if(f.size>300e6)throw new Error('O vídeo final passou de 300 MB. Encurte os trechos.');pOutX();PB.out={vid:1,f,url:URL.createObjectURL(f),dur:tot,opus:!/mp4a/.test(mt)};PB.cap=Math.min(PB.cap,tot)
  }finally{E.forEach(e=>{e.v.pause();e.v.removeAttribute('src');e.v.load()});ac.close().catch(()=>{})}}
 async function pGera(){PB.run=1;render();try{await pMontar();pMsg('✅ Vídeo final pronto. Confira a prévia e escolha a capa.')}catch(e){pMsg('❌ '+e.message,1)}finally{PB.run=0;render()}}
-async function blobUp(f,ext,onp){BL=BL||await import('https://esm.sh/@vercel/blob@1/client');return(await BL.upload('publicar/'+Date.now()+'.'+ext,f,{access:'public',handleUploadUrl:'/api/upload',clientPayload:localStorage.getItem('mtk')||'',contentType:f.type,multipart:f.size>20e6,onUploadProgress:e=>onp(e.percentage)})).url}
+const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
+async function blobUp(f,ext,onp){const nome='publicar/'+Date.now()+'.'+ext;
+ if(ext=='jpg'&&f.size<2.5e6){onp(50);const r=await api('/api/upload',{acao:'enviar',nome,dados:await b64(f)});onp(100);return r.url}
+ BL=BL||await import('https://esm.sh/@vercel/blob@1/client');const{clientToken}=await api('/api/upload',{nome}),ab=new AbortController();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)ab.abort()},3e3);
+ try{return(await BL.put(nome,f,{access:'public',token:clientToken,contentType:f.type,multipart:f.size>20e6,abortSignal:ab.signal,onUploadProgress:e=>{last=Date.now();onp(e.percentage)}})).url}
+ catch(e){const d=await api('/api/upload',{acao:'teste'}).then(()=>'',x=>x.message);throw new Error('Envio do vídeo falhou'+(d?': '+d:ab.signal.aborted?' (sem resposta do Vercel Blob por 45 s). Verifique a internet e tente de novo.':': '+e.message))}
+ finally{clearInterval(wd)}}
 async function pWait(ids){for(let k=0;k<200;k++){const v=Object.values((await api('/api/publicar',{acao:'status',ids})).st),e=v.find(x=>x.code=='ERROR'||x.code=='EXPIRED');
  if(e)throw new Error('O Instagram recusou o arquivo'+(e.msg?' ('+e.msg+')':'')+'. Confira formato, proporção e duração.');if(v.every(x=>x.code=='FINISHED'||x.code=='PUBLISHED'))return;
  pMsg('⏳ O Instagram está processando'+(PB.it.some(x=>x.vid)?' o vídeo':'')+'… '+k*3+' s');await slp(3000)}throw new Error('O Instagram demorou demais para processar. Tente de novo.')}

@@ -1,3 +1,4 @@
+process.env.VERCEL_BLOB_RETRIES = process.env.VERCEL_BLOB_RETRIES || '1';
 const { randomUUID } = require('crypto');
 const { del } = require('@vercel/blob');
 const { auth, dbGet, dbSet } = require('../lib/db');
