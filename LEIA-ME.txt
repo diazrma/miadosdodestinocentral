@@ -14,3 +14,20 @@ O servidor escolhe sozinho um modelo disponivel na sua conta Groq (o llama-3.3-7
 NAO crie GROQ_MODEL, a menos que queira forcar um modelo especifico; se existir com um nome antigo, apague.
 No Relatorio, clique em "Gerar": aparece "Gerando analise com IA..." e o texto entra como secao 5 (pode ser editado).
 No Feedback, escolha a pessoa e clique em "Gerar" (se falhar, mostra a versao automatica).
+
+PUBLICAR NO INSTAGRAM (aba "📤 Publicar")
+1. Vercel > Storage > "Blob" > Create > conectar ao projeto (cria BLOB_READ_WRITE_TOKEN sozinho).
+2. O IG_TOKEN precisa da permissao instagram_business_content_publish (alem de basic e manage_insights).
+   Se o token atual nao tiver, gere um NOVO na Meta marcando essa permissao e troque o IG_TOKEN. Depois, Redeploy.
+3. Em Acessos, marque "📤 Publicar" nos perfis que podem postar (o Administrador ja ve).
+- Formatos: Foto, Carrossel (2 a 10 fotos/videos) e Video/Reels (MP4/MOV, 3 s a 15 min, ate 300 MB).
+- Editor de foto: proporcao (1:1, 4:5, 1.91:1), zoom, posicao, girar, filtros, brilho, contraste e saturacao.
+  No Reels da para escolher a capa.
+- Montagem de video (Video/Reels): adicione 2 ou mais videos, corte inicio/fim de cada trecho e escolha a
+  transicao (corte seco, esmaecer, escurecer, deslizar, zoom). "Gerar video final" monta um MP4 9:16 no navegador;
+  leva o mesmo tempo do video e a aba precisa ficar aberta. Use Chrome/Edge (Windows/Mac) ou Safari: eles gravam
+  o audio em AAC, que o Instagram exige.
+- "Salvar rascunho" guarda o post para editar/publicar depois (lista de Rascunhos na mesma aba).
+- "Quem posta por padrao" e escolhido no Painel; cada publicacao ja vem com essa pessoa (pode trocar).
+- Os arquivos ficam no Blob so ate publicar; depois sao apagados.
+- Limite do Instagram: cerca de 50 publicacoes pela API a cada 24 h.

@@ -7,13 +7,19 @@ module.exports = async (req, res) => {
     if (!a) return res.status(401).json({ erro: 'Faça login' });
     const st = await dbGet('state') || {}, us = await dbGet('users') || [], b = req.body || {};
     const can = m => a.menus.includes(m), isAdmin = !!a.role?.admin, roleOf = id => (st.roles || []).find(r => r.id === id);
-    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '' } });
+    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || '' } });
     const no = (c, m) => res.status(c).json({ erro: m });
     if (b.acao === 'salvar_estado') {
-      if (!['posts', 'dados', 'relatorio'].some(can)) return no(403, 'Sem permissão');
+      if (!['posts', 'dados', 'relatorio', 'equipe'].some(can)) return no(403, 'Sem permissão');
       const e = b.estado || {};
-      Object.assign(st, { resp: e.resp || {}, notes: e.notes || {}, seg: e.seg || {}, last: e.last || '' });
+      Object.assign(st, { resp: e.resp || {}, notes: e.notes || {}, seg: e.seg || {}, last: e.last || '', padrao: String(e.padrao || '') });
       await dbSet('state', st); return res.json({ ok: 1 });
+    }
+    if (b.acao === 'salvar_padrao') {
+      if (!['equipe', 'posts', 'publicar'].some(can)) return no(403, 'Sem permissão');
+      const v = String(b.padrao || '');
+      if (v && !us.some(u => u.id === v)) return no(400, 'Pessoa não encontrada');
+      st.padrao = v; await dbSet('state', st); return res.json({ ok: 1 });
     }
     if (b.acao === 'salvar_usuario') {
       if (!can('equipe')) return no(403, 'Sem permissão');
