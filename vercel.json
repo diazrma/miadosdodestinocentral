@@ -1,1 +1,1 @@
-{"functions":{"api/sync.js":{"maxDuration":60}}}
+{"functions":{"api/sync.js":{"maxDuration":60},"api/publicar.js":{"maxDuration":60}}}
