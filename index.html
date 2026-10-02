@@ -295,7 +295,7 @@ async function pGera(){PB.run=1;render();try{await pMontar();pMsg('✅ Vídeo fi
 const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
 async function blobUp(f,ext,onp){const nome='publicar/'+Date.now()+'.'+ext;
  if(ext=='jpg'&&f.size<2.5e6){onp(50);const r=await api('/api/upload',{acao:'enviar',nome,dados:await b64(f)});onp(100);return r.url}
- BL=BL||await import('https://esm.sh/@vercel/blob@1.1.1/client');const r=await api('/api/upload',{nome}),ab=new AbortController();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)ab.abort()},3e3);
+ BL=BL||await import('https://esm.sh/@vercel/blob@2.8.0/client');const r=await api('/api/upload',{nome}),ab=new AbortController();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)ab.abort()},3e3);
  const o={access:'public',contentType:f.type,abortSignal:ab.signal,onUploadProgress:e=>{last=Date.now();onp(e.percentage)}};
  try{return(r.clientToken?await BL.put(nome,f,{...o,token:r.clientToken,multipart:f.size>20e6}):await BL.uploadPresigned(nome,f,{...o,handleUploadUrl:'/api/upload',headers:{Authorization:'Bearer '+(localStorage.getItem('mtk')||'')}})).url}
  catch(e){const d=await api('/api/upload',{acao:'teste'}).then(()=>'',x=>x.message);throw new Error('Envio do vídeo falhou'+(d?': '+d:ab.signal.aborted?' (sem resposta do Vercel Blob por 45 s). Verifique a internet e tente de novo.':': '+e.message))}
