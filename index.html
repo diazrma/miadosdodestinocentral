@@ -342,7 +342,12 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .ax-sec>h3{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;font-size:22px}
 .ax-sec>.d{color:var(--mut);font-size:13px;margin:0 0 14px}
 .ax-f{display:grid;gap:5px;margin-bottom:12px}.ax-f>span{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
-.ax-f input,.ax-f textarea,.ax-f select{width:100%}.ax-f textarea{min-height:96px;resize:vertical}
+.ax-f input,.ax-f textarea,.ax-f select{width:100%;min-width:0}.ax-f{min-width:0}.ax>div{min-width:0}
+@media(max-width:700px){
+ header nav#nv{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:4px;scrollbar-width:none}header nav#nv::-webkit-scrollbar{display:none}header nav#nv>*{flex:none}
+ .ax-sec{padding:14px}.ax-it{padding:12px}
+ .ax-sec .ax-ih{flex-wrap:wrap;row-gap:8px}.ax-sec .ax-ih b{flex:1 1 calc(100% - 40px)}.ax-sec .ax-ih .ax-pill{margin-right:auto}.ax-sec .ax-ih .ax-pill+.ax-ib,.ax-sec .ax-ih b+.ax-ib{margin-left:auto}
+ .ax-top h2{font-size:26px}}.ax-f textarea{min-height:96px;resize:vertical}
 .ax-2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}@media(max-width:600px){.ax-2{grid-template-columns:1fr}}
 .ax-cnt{font-size:11px;color:var(--mut);text-align:right;margin-top:-8px;margin-bottom:10px}
 .ax-it{border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--bg)}
