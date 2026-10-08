@@ -401,7 +401,7 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .ph.lock .sc{background:radial-gradient(80% 60% at 50% 30%,#3a2a12,#0b0805);color:#fff}
 .ph.lock .sc:after{display:none}.ph .hr{text-align:center;margin-top:60px;font:300 52px/1 system-ui}.ph .dt{text-align:center;font-size:12px;opacity:.75}
 .ph .nt{margin:40px 10px 0;background:rgba(239,230,210,.94);color:#1f1a14;border-radius:16px;padding:10px 12px;display:flex;gap:9px}
-.ph .nt .ic{width:30px;height:30px;border-radius:8px;background:#1f1a14;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px}
+.ph .nt .ic{width:30px;height:30px;border-radius:8px;background:#1f1a14 url(/icone.png) center/cover;flex:none}
 .ph .nt b{display:block;font-size:11px}.ph .nt small{font-size:10px;color:#1f1a1499}.ph .nt p{margin:2px 0 0;font-size:11px;line-height:1.35}
 </style>`);
 const esc2=v=>esc(v??'');
@@ -459,7 +459,7 @@ function apAparelhos(){return `<div class="ax-sec"><h3>Aparelhos de teste</h3><p
  ${APD.length?APD.map(d=>`<div class="ax-dev"><span class="ic">📱</span><div><b>${esc2(d.nome)}</b><small>${esc2(d.modelo||'Modelo desconhecido')} · visto em ${new Date(d.visto).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</small></div><button onclick="APDEST='teste';APT='notif';render()">Testar</button><button class="ax-ib x" title="Remover" onclick="apRmAp('${esc2(d.token)}')">✕</button></div>`).join(''):'<div class="ax-empty">Nenhum aparelho ainda.</div>'}</div>`}
 function apPreviaHtml(){
  if(APT=='notif'){const agora=new Date();return `<div class="ph lock"><div class="sc"><div class="hr">${agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div><div class="dt">${agora.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div>
-  <div class="nt"><div class="ic">🐾</div><div><small>Miados do Destino · agora</small><b>${esc2(AP._pt)||'Título da notificação'}</b><p>${esc2(AP._px)||'A mensagem aparece aqui.'}</p></div></div></div></div>`}
+  <div class="nt"><div class="ic"></div><div><small>Miados do Destino · agora</small><b>${esc2(AP._pt)||'Título da notificação'}</b><p>${esc2(AP._px)||'A mensagem aparece aqui.'}</p></div></div></div></div>`}
  const g=AP.gazeta,m=g.manchete,nav=on=>`<div class="nv">${['Gazeta','Elenco','Enigma','Temporada'].map(x=>`<span class="${x==on?'on':''}">${x}</span>`).join('')}</div>`;
  if(APT=='temporada')return `<div class="ph"><div class="sc"><div class="bd" style="padding-top:22px"><div class="ms" style="margin:0;text-align:left;padding-bottom:4px"><b style="font-size:22px">Temporada 1</b></div>${AP.temporada.map(x=>`<div class="cp"><b>${x.n}</b><div><h5>${esc2(x.titulo)}</h5><p>${esc2(x.sinopse)}</p></div><span class="pl ${x.status}">${x.status=='lancado'?'Assistir':'🔔 Lembrar'}</span></div>`).join('')}</div>${nav('Temporada')}</div></div>`;
  if(APT=='enigma')return `<div class="ph"><div class="sc"><div class="bd" style="padding-top:22px"><div class="k">O desenho de Haneul</div><h4>Cinco gatos antes dos cinco gatos</h4><img src="${SITE_APP}/enigma/${AP.enigma?.revelado?'desenho-milka':'desenho'}.jpg" style="width:100%;border:5px solid #fff;box-shadow:0 2px 6px #0003;transform:rotate(-1.5deg);margin:6px 0 10px"><p style="font-size:10px">${AP.enigma?.revelado?'O quinto gato chegou: é a Milka.':'Quatro, ele pintou. O quinto ficou em branco.'}</p></div>${nav('Enigma')}</div></div>`;
