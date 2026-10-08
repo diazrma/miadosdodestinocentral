@@ -326,36 +326,161 @@ function confirma(msg,ok='Confirmar',perigo=true){return new Promise(res=>{const
 document.head.insertAdjacentHTML('beforeend','<style>.cfm{position:fixed;inset:0;background:rgba(10,8,5,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:90;padding:18px}.cfm-c{max-width:380px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.35);text-align:center;padding:22px}.cfm-c p{margin:0 0 18px;font:600 20px/1.3 "Cormorant Garamond",Georgia,serif}.cfm-b{display:flex;gap:10px}.cfm-b button{flex:1;padding:11px;font-weight:600}.cfm-x{background:#a63a26;border-color:#a63a26;color:#fff}.cfm-x:hover{background:#bf4630;border-color:#bf4630}.ap-l{display:grid;gap:10px}.ap-i{display:grid;gap:8px;border:1px dashed var(--bd);border-radius:12px;padding:10px}.ap-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.ap-pv{width:100%;max-height:220px;object-fit:cover;object-position:50% 22%;border-radius:10px;border:1px solid var(--bd)}.ap-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}.ap-g label{cursor:pointer;position:relative}.ap-g input{position:absolute;opacity:0}.ap-g img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;border:3px solid transparent;display:block}.ap-g input:checked+img{border-color:var(--gd)}.ap-g span{font-size:11px;color:var(--mut)}.ap-cnt{font-size:12px;color:var(--mut);text-align:right}.ap-t td{vertical-align:top}</style>');
 
 // ---------- 📱 App: conteúdo do app e notificações
-let AP=null,APD=[],APH=[],APS=false,APE='';
-async function apCarrega(){try{const[c,d,h]=await Promise.all([fetch('/api/conteudo').then(r=>r.json()),api('/api/conteudo',{acao:'aparelhos'}),api('/api/conteudo',{acao:'historico'})]);AP=c;APD=d.aparelhos||[];APH=h.log||[];APE=''}catch(e){APE=e.message}render()}
-const apV=(id,v)=>`value="${esc(v??'')}" id="${id}"`;
-function appPainel(){if(!AP){if(!APE)apCarrega();return APE?empty('Não foi possível carregar o conteúdo do app: '+esc(APE),'<button onclick="APE=\'\';apCarrega()">Tentar de novo</button>'):empty('Carregando o conteúdo do app…')}
- const g=AP.gazeta,m=g.manchete,po=AP.postDoDia||{},rec=po.recentes||[],st={producao:'Em produção',breve:'Em breve',lancado:'Lançado'};
- return `<h2>📱 App Miados do Destino</h2><p class="mut">O que você salvar aqui aparece no app de todo mundo em até 1 minuto.${AP.atualizado?' Última alteração: '+new Date(AP.atualizado).toLocaleString('pt-BR')+(AP.por?' por '+esc(AP.por):''):''}</p>
- <div class="c sp"><div class="ap-h"><h3>Gazeta · manchete</h3><input style="max-width:160px" ${apV('ag-ed',g.edicao)} placeholder="Edição nº 01"></div>
-  <div class="ap-l"><div class="r"><input ${apV('am-k',m.kicker)} placeholder="Chapéu (ex.: Estreia)"><input ${apV('am-l',m.legenda)} placeholder="Legenda da foto"></div>
-  <input ${apV('am-t',m.titulo)} placeholder="Título da manchete"><input ${apV('am-s',m.linha)} placeholder="Linha fina (subtítulo)">
-  <textarea id="am-x" placeholder="Texto (deixe uma linha em branco entre parágrafos)">${esc(m.texto)}</textarea>
-  <input ${apV('am-i',m.img)} placeholder="Endereço da foto (https://…)" oninput="$('#am-pv').src=this.value"><img id="am-pv" class="ap-pv" src="${esc(m.img)}" alt=""></div></div>
- <div class="c sp"><div class="ap-h"><h3>Gazeta · mais notícias</h3><button onclick="apSalvaTela();AP.gazeta.materias.push({kicker:'',titulo:'',texto:'',link:'',linkTxt:''});render()">＋ Matéria</button></div><div class="ap-l">
-  ${g.materias.map((x,i)=>`<div class="ap-i"><div class="ap-h"><b>Matéria ${i+1}</b><button onclick="apRm('materias',${i})">Remover</button></div><div class="r"><input ${apV('mt-k'+i,x.kicker)} placeholder="Chapéu"><input ${apV('mt-t'+i,x.titulo)} placeholder="Título"></div><textarea id="mt-x${i}" placeholder="Texto">${esc(x.texto)}</textarea><div class="r"><input ${apV('mt-l'+i,x.link)} placeholder="Link (opcional)"><input ${apV('mt-lt'+i,x.linkTxt)} placeholder="Texto do link"></div></div>`).join('')}</div></div>
- <div class="c sp"><div class="ap-h"><h3>Temporada</h3><button onclick="apSalvaTela();AP.temporada.push({n:AP.temporada.length+1,titulo:'',sinopse:'',status:'producao'});render()">＋ Capítulo</button></div><div class="ap-l">
-  ${AP.temporada.map((x,i)=>`<div class="ap-i"><div class="r"><input style="flex:0 0 72px;width:72px;min-width:0" type="number" title="Nº" ${apV('tp-n'+i,x.n)}><input ${apV('tp-t'+i,x.titulo)} placeholder="Título"><select id="tp-s${i}">${Object.entries(st).map(([k,l])=>`<option value="${k}" ${x.status==k?'selected':''}>${l}</option>`).join('')}</select><input type="date" ${apV('tp-d'+i,x.data)} title="Data de estreia (opcional)"><button style="flex:0 0 auto" onclick="apRm('temporada',${i})">Remover</button></div><input ${apV('tp-x'+i,x.sinopse)} placeholder="Sinopse curta"></div>`).join('')}</div></div>
- <div class="c sp"><h3>Enigma do desenho</h3><label class="r" style="cursor:pointer"><input type="checkbox" id="en-r" style="flex:0 0 auto" ${AP.enigma?.revelado?'checked':''}> <span>Revelar o quinto gato (Milka) para todo mundo no app</span></label></div>
- <div class="c sp"><h3>Post do dia</h3><p class="mut">Por padrão o app mostra o post mais recente do Instagram. Para destacar outro, escolha abaixo.</p>
-  ${rec.length?`<div class="ap-g"><label><input type="radio" name="pf" value="" ${!po.fixo?'checked':''}><img src="${esc(rec[0].img)}" alt=""><span>Automático (mais recente)</span></label>${rec.map(p=>`<label><input type="radio" name="pf" value="${esc(p.id)}" ${po.fixo==p.id?'checked':''}><img src="${esc(p.img)}" alt=""><span>${esc((p.legenda||'').slice(0,40))}</span></label>`).join('')}</div>`:'<p class="dn">Ainda não há posts do Instagram (confira o IG_TOKEN na Vercel).</p>'}</div>
- <div class="r sp"><button class="pr" id="ap-sv" onclick="apSalva()">💾 Salvar conteúdo do app</button><button onclick="AP=null;render()">Descartar alterações</button></div>
- <div class="c sp"><h3>🔔 Enviar notificação</h3><div class="ap-l">
-  <input id="pu-t" maxlength="65" placeholder="Título (ex.: Nova edição da Gazeta)" oninput="$('#pu-tc').textContent=this.value.length+'/65'"><div class="ap-cnt" id="pu-tc">0/65</div>
-  <textarea id="pu-x" maxlength="180" placeholder="Texto da notificação" oninput="$('#pu-xc').textContent=this.value.length+'/180'"></textarea><div class="ap-cnt" id="pu-xc">0/180</div>
-  <div class="r"><select id="pu-d"><option value="t:gazeta">Todos que têm o app</option>${AP.temporada.map(x=>`<option value="t:ep-${x.n}">Quem pediu lembrete do episódio ${x.n} · ${esc(x.titulo)}</option>`).join('')}${APD.length?`<optgroup label="Teste: um aparelho só">${APD.map(d=>`<option value="a:${esc(d.token)}">🧪 ${esc(d.nome)}${d.modelo?' · '+esc(d.modelo):''}</option>`).join('')}</optgroup>`:''}</select><button class="pr" style="flex:0 0 auto" onclick="apPush()">Enviar</button></div>
-  ${APD.length?'':'<p class="mut">Nenhum aparelho de teste registrado ainda. Abra o app no celular e defina seu nome em Ajustes.</p>'}</div></div>
- <div class="c sp"><h3>Aparelhos de teste</h3>${APD.length?`<table class="ap-t"><tr><th>Nome</th><th>Modelo</th><th>Último acesso</th><th></th></tr>${APD.map(d=>`<tr><td>${esc(d.nome)}</td><td>${esc(d.modelo||'—')}</td><td>${new Date(d.visto).toLocaleString('pt-BR')}</td><td><button onclick="apRmAp('${esc(d.token)}')">Remover</button></td></tr>`).join('')}</table>`:'<p class="mut">Nenhum ainda.</p>'}</div>
- <div class="c sp"><h3>Notificações enviadas</h3>${APH.length?`<table class="ap-t"><tr><th>Quando</th><th>Para</th><th>Mensagem</th><th>Por</th></tr>${APH.map(h=>`<tr><td>${new Date(h.quando).toLocaleString('pt-BR')}</td><td>${esc(h.destino||h.topico||'')}</td><td><b>${esc(h.titulo)}</b><br>${esc(h.texto)}</td><td>${esc(h.por)}</td></tr>`).join('')}</table>`:'<p class="mut">Nenhuma ainda.</p>'}</div>`}
-function apSalvaTela(){if(!$('#am-t'))return;const v=id=>($('#'+id)||{}).value||'';const g=AP.gazeta;g.edicao=v('ag-ed');Object.assign(g.manchete,{kicker:v('am-k'),titulo:v('am-t'),linha:v('am-s'),texto:v('am-x'),img:v('am-i'),legenda:v('am-l')});g.materias=g.materias.map((x,i)=>({kicker:v('mt-k'+i),titulo:v('mt-t'+i),texto:v('mt-x'+i),link:v('mt-l'+i),linkTxt:v('mt-lt'+i)}));AP.temporada=AP.temporada.map((x,i)=>({n:+v('tp-n'+i)||i+1,titulo:v('tp-t'+i),sinopse:v('tp-x'+i),status:v('tp-s'+i)||'producao',data:v('tp-d'+i)}));AP.enigma={revelado:!!$('#en-r')?.checked};const f=document.querySelector('input[name=pf]:checked');AP.postDoDia={...AP.postDoDia,fixo:f?f.value:''}}
-async function apRm(lista,i){if(!(await confirma(lista=='materias'?'Remover esta matéria?':'Remover este capítulo?','Remover')))return;apSalvaTela();(lista=='materias'?AP.gazeta.materias:AP.temporada).splice(i,1);render()}
-async function apSalva(){apSalvaTela();const b=$('#ap-sv');b.disabled=true;b.textContent='Salvando…';try{const{recentes,post,...pd}=AP.postDoDia||{};await api('/api/conteudo',{acao:'salvar',conteudo:{...AP,postDoDia:pd}});AP=null;await apCarrega();alert('Conteúdo do app salvo.')}catch(e){alert('Não foi possível salvar: '+e.message);b.disabled=false;b.textContent='💾 Salvar conteúdo do app'}}
-async function apPush(){const t=$('#pu-t').value.trim(),x=$('#pu-x').value.trim(),d=$('#pu-d').value;if(!t||!x)return alert('Preencha título e texto.');const nome=$('#pu-d').selectedOptions[0].textContent;if(!(await confirma('Enviar “'+t+'” para: '+nome+'?','Enviar',false)))return;apSalvaTela();try{await api('/api/conteudo',{acao:'push',titulo:t,texto:x,...(d.startsWith('a:')?{aparelho:d.slice(2)}:{topico:d.slice(2)})});const h=await api('/api/conteudo',{acao:'historico'});APH=h.log||[];render();alert('Notificação enviada.')}catch(e){alert('Não foi possível enviar: '+e.message)}}
+const SITE_APP='https://miados-do-destino.vercel.app';
+let AP=null,APD=[],APH=[],APE='',APT='gazeta',APSUJO=false,APDEST='todos';
+document.head.insertAdjacentHTML('beforeend',`<style>
+.ax{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
+@media(max-width:900px){.ax{grid-template-columns:1fr}.ax-pv{display:none}}
+.ax-top{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+.ax-top h2{margin:0;font-size:30px}.ax-top p{margin:2px 0 0;color:var(--mut);font-size:13px}
+.ax-st{display:inline-flex;align-items:center;gap:7px;font-size:12px;padding:6px 11px;border-radius:999px;border:1px solid var(--bd);background:var(--cd)}
+.ax-st i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}.ax-st.suj i{background:var(--gd)}
+.ax-tabs{display:flex;gap:4px;padding:4px;border:1px solid var(--bd);border-radius:14px;background:var(--cd);overflow-x:auto;margin-bottom:16px}
+.ax-tabs button{border:0;background:transparent;border-radius:10px;padding:9px 14px;white-space:nowrap;color:var(--mut);font-weight:600}
+.ax-tabs button.on{background:var(--gd);color:#17130f}.ax-tabs button:hover{color:var(--fg)}
+.ax-sec{background:var(--cd);border:1px solid var(--bd);border-radius:16px;padding:18px;margin-bottom:14px}
+.ax-sec>h3{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px;font-size:22px}
+.ax-sec>.d{color:var(--mut);font-size:13px;margin:0 0 14px}
+.ax-f{display:grid;gap:5px;margin-bottom:12px}.ax-f>span{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut)}
+.ax-f input,.ax-f textarea,.ax-f select{width:100%}.ax-f textarea{min-height:96px;resize:vertical}
+.ax-2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}@media(max-width:600px){.ax-2{grid-template-columns:1fr}}
+.ax-cnt{font-size:11px;color:var(--mut);text-align:right;margin-top:-8px;margin-bottom:10px}
+.ax-it{border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:10px;background:var(--bg)}
+.ax-ih{display:flex;align-items:center;gap:8px;margin-bottom:10px}.ax-ih b{flex:1;font:600 18px "Cormorant Garamond",Georgia,serif}
+.ax-n{width:28px;height:28px;border-radius:8px;background:var(--gd);color:#17130f;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.ax-ib{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:9px}
+.ax-ib.x:hover{border-color:var(--no);color:var(--no)}
+.ax-add{width:100%;border-style:dashed;padding:12px;color:var(--mut);font-weight:600}.ax-add:hover{color:var(--gd)}
+.ax-pill{font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.ax-pill.producao{background:rgba(168,151,124,.18);color:var(--mut)}.ax-pill.breve{background:rgba(245,200,75,.18);color:var(--gd)}.ax-pill.lancado{background:rgba(111,207,143,.16);color:var(--ok)}
+.ax-sw{display:flex;align-items:center;gap:14px;cursor:pointer;padding:14px;border:1px solid var(--bd);border-radius:14px;background:var(--bg)}
+.ax-sw input{display:none}.ax-sw .t{width:52px;height:30px;border-radius:999px;background:var(--bd);position:relative;flex:none;transition:.2s}
+.ax-sw .t:after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px #0005}
+.ax-sw input:checked+.t{background:var(--gd)}.ax-sw input:checked+.t:after{left:25px}
+.ax-sw b{display:block}.ax-sw small{color:var(--mut)}
+.ax-dz{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.ax-dz figure{margin:0;border:2px solid var(--bd);border-radius:14px;overflow:hidden;background:#fff;opacity:.55;transition:.2s}
+.ax-dz figure.on{opacity:1;border-color:var(--gd)}.ax-dz img{width:100%;display:block}.ax-dz figcaption{font-size:12px;text-align:center;padding:6px;background:var(--cd);color:var(--mut)}
+.ax-pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.ax-pg label{cursor:pointer;border:2px solid transparent;border-radius:14px;overflow:hidden;background:var(--bg);position:relative}
+.ax-pg input{display:none}.ax-pg img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.ax-pg span{display:block;font-size:11px;padding:6px 8px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ax-pg label:has(input:checked){border-color:var(--gd)}.ax-pg label:has(input:checked):after{content:"✓";position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:50%;background:var(--gd);color:#17130f;font-weight:800;display:flex;align-items:center;justify-content:center}
+.ax-pg .auto{display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:1;font-size:30px;gap:6px;color:var(--gd)}.ax-pg .auto small{font-size:11px;color:var(--mut);text-align:center;padding:0 8px}
+.ax-dest{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}@media(max-width:600px){.ax-dest{grid-template-columns:1fr}}
+.ax-dest label{cursor:pointer;border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--bg)}.ax-dest input{display:none}
+.ax-dest label:has(input:checked){border-color:var(--gd);box-shadow:0 0 0 1px var(--gd) inset}.ax-dest b{display:block;font-size:14px}.ax-dest small{color:var(--mut);font-size:12px}
+.ax-hist{display:grid;gap:10px}.ax-h{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--bg)}
+.ax-h .ic{width:34px;height:34px;border-radius:10px;background:rgba(245,200,75,.15);display:flex;align-items:center;justify-content:center}
+.ax-h b{display:block}.ax-h small{color:var(--mut);font-size:12px}
+.ax-dev{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--bd);border-radius:12px;background:var(--bg);margin-bottom:8px}
+.ax-dev .ic{font-size:22px}.ax-dev div{flex:1}.ax-dev small{color:var(--mut);display:block;font-size:12px}
+.ax-empty{text-align:center;color:var(--mut);padding:22px;border:1px dashed var(--bd);border-radius:14px}
+.ax-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;gap:10px;justify-content:space-between;padding:10px 12px 10px 16px;border:1px solid var(--gd);border-radius:14px;background:var(--cd);box-shadow:0 10px 30px rgba(0,0,0,.3);margin-top:6px}
+.ax-bar span{font-size:13px}.ax-bar .bt{display:flex;gap:8px}
+/* prévia do celular, no visual da Gazeta do Destino */
+.ax-pv{position:sticky;top:12px}
+.ax-pv .lb{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);text-align:center;margin-bottom:8px}
+.ph{width:300px;height:620px;margin:0 auto;border-radius:38px;background:#0c0a08;padding:10px;box-shadow:0 20px 50px rgba(0,0,0,.45)}
+.ph .sc{width:100%;height:100%;border-radius:30px;overflow:hidden;background:#efe6d2;color:#1f1a14;font:12px/1.45 system-ui,sans-serif;position:relative;display:flex;flex-direction:column}
+.ph .sc:after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 50px rgba(120,80,20,.22)}
+.ph .tp{display:flex;justify-content:space-between;font-size:7px;letter-spacing:.18em;text-transform:uppercase;border-top:1px solid #1f1a1488;border-bottom:1px solid #1f1a1488;padding:3px 0;margin:18px 12px 0}
+.ph .ms{text-align:center;border-bottom:3px double #1f1a14;margin:0 12px;padding:6px 0 6px}
+.ph .ms b{display:block;font:700 26px/0.95 "Cormorant Garamond",Georgia,serif;text-transform:uppercase}.ph .ms i{font:italic 11px "Cormorant Garamond",Georgia,serif;color:#1f1a14bb}
+.ph .bd{flex:1;overflow:hidden;padding:9px 12px}
+.ph .k{font-size:7px;font-weight:700;letter-spacing:.24em;text-transform:uppercase;color:#8a5a14;margin-bottom:3px}
+.ph h4{font:700 19px/1.05 "Cormorant Garamond",Georgia,serif;margin:0 0 4px}
+.ph .ln{font:italic 11px/1.25 "Cormorant Garamond",Georgia,serif;color:#1f1a14cc;margin-bottom:6px}
+.ph .im{width:100%;height:110px;object-fit:cover;object-position:50% 22%;border:1px solid #1f1a14aa;display:block;background:#1f1a14}
+.ph .tx{font-size:9.5px;column-count:2;column-gap:10px;column-rule:1px solid #1f1a1430;margin-top:6px}
+.ph .st{border-top:1px solid #1f1a1440;padding:6px 0}.ph .st h5{font:700 14px/1.1 "Cormorant Garamond",Georgia,serif;margin:0 0 2px}.ph .st p{font-size:9.5px;margin:0;color:#1f1a14cc}
+.ph .nv{height:44px;border-top:3px double #1f1a14;display:flex;justify-content:space-around;align-items:center;font-size:7px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#1f1a1477}.ph .nv .on{color:#1f1a14}
+.ph .cp{display:flex;gap:9px;align-items:baseline;border-bottom:1px solid #1f1a1430;padding:7px 0}.ph .cp b{font:700 22px/0.9 "Cormorant Garamond",Georgia,serif;width:18px}.ph .cp h5{font:700 14px/1.1 "Cormorant Garamond",Georgia,serif;margin:0}.ph .cp p{font-size:9px;margin:2px 0 0;color:#1f1a14bb}
+.ph .cp .pl{margin-left:auto;font-size:7px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border:1px solid #8a5a14;color:#8a5a14;padding:2px 4px;white-space:nowrap;align-self:center}
+.ph .cp .pl.lancado{background:#1f1a14;color:#efe6d2;border-color:#1f1a14}
+.ph .ig{border:1px solid #1f1a14;background:#f6efdf;padding:7px;margin-top:4px}.ph .ig img{width:100%;aspect-ratio:1;object-fit:cover;display:block}.ph .ig p{font-size:9.5px;margin:5px 0 0}
+.ph.lock .sc{background:radial-gradient(80% 60% at 50% 30%,#3a2a12,#0b0805);color:#fff}
+.ph.lock .sc:after{display:none}.ph .hr{text-align:center;margin-top:60px;font:300 52px/1 system-ui}.ph .dt{text-align:center;font-size:12px;opacity:.75}
+.ph .nt{margin:40px 10px 0;background:rgba(239,230,210,.94);color:#1f1a14;border-radius:16px;padding:10px 12px;display:flex;gap:9px}
+.ph .nt .ic{width:30px;height:30px;border-radius:8px;background:#1f1a14;flex:none;display:flex;align-items:center;justify-content:center;font-size:15px}
+.ph .nt b{display:block;font-size:11px}.ph .nt small{font-size:10px;color:#1f1a1499}.ph .nt p{margin:2px 0 0;font-size:11px;line-height:1.35}
+</style>`);
+const esc2=v=>esc(v??'');
+const STS={producao:'Em produção',breve:'Em breve',lancado:'Lançado'};
+async function apCarrega(){try{const[c,d,h]=await Promise.all([fetch('/api/conteudo',{cache:'no-store'}).then(r=>r.json()),api('/api/conteudo',{acao:'aparelhos'}),api('/api/conteudo',{acao:'historico'})]);AP=c;APD=d.aparelhos||[];APH=h.log||[];APE='';APSUJO=false}catch(e){APE=e.message}render()}
+function apMud(){APSUJO=true;apSalvaTela();apPrevia();const b=$('#ax-bar');if(b)b.style.display='flex';const s=$('#ax-st');if(s){s.className='ax-st suj';s.innerHTML='<i></i>Alterações não salvas'}}
+const axF=(id,rot,v,ex='')=>`<label class="ax-f"><span>${rot}</span><input id="${id}" value="${esc2(v)}" oninput="apMud()" ${ex}></label>`;
+const axFT=(id,rot,v,ex='')=>`<label class="ax-f"><span>${rot}</span><textarea id="${id}" oninput="apMud()" ${ex}>${esc2(v)}</textarea></label>`;
+function appPainel(){
+ if(!AP){if(!APE)apCarrega();return APE?empty('Não foi possível carregar o conteúdo do app: '+esc(APE),'<button onclick="APE=\'\';apCarrega()">Tentar de novo</button>'):empty('Carregando o conteúdo do app…')}
+ const tabs=[['gazeta','📰 Gazeta'],['temporada','🎬 Temporada'],['enigma','🧩 Enigma'],['post','📸 Post do dia'],['notif','🔔 Notificações'],['aparelhos','🧪 Aparelhos']];
+ const quando=AP.atualizado?new Date(AP.atualizado).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+(AP.por?' por '+esc(AP.por):''):'ainda sem alterações';
+ const editavel=!['notif','aparelhos'].includes(APT);
+ return `<div class="ax-top"><div><h2>App Miados do Destino</h2><p>Gerencie o que aparece no app e envie notificações.</p></div>
+  <span class="ax-st${APSUJO?' suj':''}" id="ax-st"><i></i>${APSUJO?'Alterações não salvas':'No ar · '+quando}</span></div>
+ <div class="ax-tabs">${tabs.map(([k,l])=>`<button class="${APT==k?'on':''}" onclick="apSalvaTela();APT='${k}';render()">${l}</button>`).join('')}</div>
+ <div class="ax"><div>${({gazeta:apGazeta,temporada:apTemporada,enigma:apEnigma,post:apPost,notif:apNotif,aparelhos:apAparelhos})[APT]()}
+  ${editavel?`<div class="ax-bar" id="ax-bar" style="display:${APSUJO?'flex':'none'}"><span>Você tem alterações não salvas.</span><div class="bt"><button onclick="apDescarta()">Descartar</button><button class="pr" id="ap-sv" onclick="apSalva()">Salvar e publicar no app</button></div></div>`:''}</div>
+  <div class="ax-pv"><div class="lb">${APT=='notif'?'Prévia da notificação':'Prévia no app'}</div><div id="ax-prev">${apPreviaHtml()}</div></div></div>`}
+function apGazeta(){const g=AP.gazeta,m=g.manchete;return `
+ <div class="ax-sec"><h3>Manchete <input style="max-width:150px;font:500 13px system-ui,sans-serif" id="ag-ed" value="${esc2(g.edicao)}" oninput="apMud()" title="Número da edição"></h3><p class="d">A notícia principal da capa da Gazeta.</p>
+  <div class="ax-2">${axF('am-k','Chapéu',m.kicker,'placeholder="Ex.: Estreia"')}${axF('am-l','Legenda da foto',m.legenda)}</div>
+  ${axF('am-t','Título',m.titulo)}${axF('am-s','Linha fina',m.linha)}${axFT('am-x','Texto',m.texto,'placeholder="Deixe uma linha em branco entre parágrafos"')}
+  ${axF('am-i','Endereço da foto',m.img,'placeholder="https://…"')}</div>
+ <div class="ax-sec"><h3>Mais notícias</h3><p class="d">As matérias que aparecem abaixo da manchete, na ordem desta lista.</p>
+  ${g.materias.map((x,i)=>`<div class="ax-it"><div class="ax-ih"><span class="ax-n">${i+1}</span><b>${esc2(x.titulo)||'Matéria sem título'}</b>
+   <button class="ax-ib" title="Subir" ${i?'':'disabled'} onclick="apMove('materias',${i},-1)">↑</button><button class="ax-ib" title="Descer" ${i<g.materias.length-1?'':'disabled'} onclick="apMove('materias',${i},1)">↓</button><button class="ax-ib x" title="Remover" onclick="apRm('materias',${i})">✕</button></div>
+   <div class="ax-2">${axF('mt-k'+i,'Chapéu',x.kicker)}${axF('mt-t'+i,'Título',x.titulo)}</div>${axFT('mt-x'+i,'Texto',x.texto)}
+   <div class="ax-2">${axF('mt-l'+i,'Link (opcional)',x.link,'placeholder="https://…"')}${axF('mt-lt'+i,'Texto do link',x.linkTxt,'placeholder="Ex.: Seguir no Instagram"')}</div></div>`).join('')}
+  <button class="ax-add" onclick="apSalvaTela();AP.gazeta.materias.push({kicker:'',titulo:'',texto:'',link:'',linkTxt:''});apMud();render()">＋ Adicionar matéria</button></div>`}
+function apTemporada(){return `<div class="ax-sec"><h3>Temporada 1</h3><p class="d">A situação de cada capítulo aparece no app. Quem pediu lembrete recebe aviso quando você enviar uma notificação para o episódio.</p>
+ ${AP.temporada.map((x,i)=>`<div class="ax-it"><div class="ax-ih"><span class="ax-n">${x.n}</span><b>${esc2(x.titulo)||'Capítulo sem título'}</b><span class="ax-pill ${x.status}">${STS[x.status]}</span>
+  <button class="ax-ib" title="Subir" ${i?'':'disabled'} onclick="apMove('temporada',${i},-1)">↑</button><button class="ax-ib" title="Descer" ${i<AP.temporada.length-1?'':'disabled'} onclick="apMove('temporada',${i},1)">↓</button><button class="ax-ib x" title="Remover" onclick="apRm('temporada',${i})">✕</button></div>
+  <div class="ax-2">${axF('tp-t'+i,'Título',x.titulo)}<label class="ax-f"><span>Situação</span><select id="tp-s${i}" onchange="apMud();render()">${Object.entries(STS).map(([k,l])=>`<option value="${k}" ${x.status==k?'selected':''}>${l}</option>`).join('')}</select></label></div>
+  <div class="ax-2">${axF('tp-x'+i,'Sinopse curta',x.sinopse)}${axF('tp-d'+i,'Data de estreia (opcional)',x.data,'type="date"')}</div><input type="hidden" id="tp-n${i}" value="${x.n}"></div>`).join('')}
+ <button class="ax-add" onclick="apSalvaTela();AP.temporada.push({n:AP.temporada.length+1,titulo:'',sinopse:'',status:'producao'});apMud();render()">＋ Adicionar capítulo</button></div>`}
+function apEnigma(){const r=!!AP.enigma?.revelado;return `<div class="ax-sec"><h3>Enigma do desenho</h3><p class="d">No app, o desenho de Haneul mostra quatro gatos pintados e o quinto em branco. Ligue para revelar a Milka para todo mundo.</p>
+ <label class="ax-sw"><input type="checkbox" id="en-r" ${r?'checked':''} onchange="apMud();render()"><span class="t"></span><div><b>${r?'Quinto gato revelado':'Quinto gato em segredo'}</b><small>${r?'Todo mundo vê a Milka pintada no desenho.':'O app mostra o quinto gato só no contorno.'}</small></div></label>
+ <div class="ax-dz"><figure class="${r?'':'on'}"><img src="${SITE_APP}/enigma/desenho.jpg" alt=""><figcaption>Em segredo</figcaption></figure><figure class="${r?'on':''}"><img src="${SITE_APP}/enigma/desenho-milka.jpg" alt=""><figcaption>Revelado</figcaption></figure></div></div>`}
+function apPost(){const po=AP.postDoDia||{},rec=po.recentes||[];return `<div class="ax-sec"><h3>Post do dia</h3><p class="d">Por padrão, o app mostra o post mais recente do Instagram. Para destacar outro, escolha abaixo.</p>
+ ${rec.length?`<div class="ax-pg"><label><input type="radio" name="pf" value="" ${!po.fixo?'checked':''} onchange="apMud()"><div class="auto">⟳<small>Automático: sempre o mais recente</small></div><span>Automático</span></label>
+ ${rec.map(p=>`<label><input type="radio" name="pf" value="${esc2(p.id)}" ${po.fixo==p.id?'checked':''} onchange="apMud()"><img src="${esc2(p.img)}" alt="" loading="lazy"><span>${esc2((p.legenda||'').split('\n')[0])||'Sem legenda'}</span></label>`).join('')}</div>`:'<div class="ax-empty">Ainda não há posts do Instagram. Confira o IG_TOKEN na Vercel.</div>'}</div>`}
+function apNotif(){return `<div class="ax-sec"><h3>Nova notificação</h3><p class="d">Chega na tela do celular de quem tem o app, mesmo com o app fechado.</p>
+ <div class="ax-dest">
+  <label><input type="radio" name="pd" value="todos" ${APDEST=='todos'?'checked':''} onchange="APDEST=this.value;render()"><b>👥 Todos</b><small>Quem tem o app instalado</small></label>
+  <label><input type="radio" name="pd" value="ep" ${APDEST=='ep'?'checked':''} onchange="APDEST=this.value;render()"><b>🎬 Lembrete</b><small>Quem pediu aviso de um episódio</small></label>
+  <label><input type="radio" name="pd" value="teste" ${APDEST=='teste'?'checked':''} onchange="APDEST=this.value;render()"><b>🧪 Teste</b><small>Só um aparelho</small></label></div>
+ ${APDEST=='ep'?`<label class="ax-f"><span>Episódio</span><select id="pu-ep">${AP.temporada.map(x=>`<option value="ep-${x.n}">Episódio ${x.n} · ${esc2(x.titulo)}</option>`).join('')}</select></label>`:''}
+ ${APDEST=='teste'?(APD.length?`<label class="ax-f"><span>Aparelho</span><select id="pu-ap">${APD.map(d=>`<option value="${esc2(d.token)}">${esc2(d.nome)}${d.modelo?' · '+esc2(d.modelo):''}</option>`).join('')}</select></label>`:'<div class="ax-empty" style="margin-bottom:12px">Nenhum aparelho de teste ainda. Abra o app no celular e defina seu nome em Ajustes.</div>'):''}
+ <label class="ax-f"><span>Título</span><input id="pu-t" maxlength="65" value="${esc2(AP._pt)}" placeholder="Ex.: Nova edição da Gazeta" oninput="AP._pt=this.value;$('#pu-tc').textContent=this.value.length+'/65';apPrevia()"></label><div class="ax-cnt" id="pu-tc">${(AP._pt||'').length}/65</div>
+ <label class="ax-f"><span>Mensagem</span><textarea id="pu-x" maxlength="180" placeholder="Ex.: O desenho de Haneul guarda um segredo. Você consegue ver?" oninput="AP._px=this.value;$('#pu-xc').textContent=this.value.length+'/180';apPrevia()">${esc2(AP._px)}</textarea></label><div class="ax-cnt" id="pu-xc">${(AP._px||'').length}/180</div>
+ <button class="pr" style="width:100%;padding:12px" onclick="apPush()">🔔 Enviar notificação</button></div>
+ <div class="ax-sec"><h3>Enviadas</h3>${APH.length?`<div class="ax-hist">${APH.map(h=>`<div class="ax-h"><div class="ic">🔔</div><div><b>${esc2(h.titulo)}</b><div>${esc2(h.texto)}</div><small>${new Date(h.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})} · ${esc2(h.destino||h.topico)} · por ${esc2(h.por)}</small></div></div>`).join('')}</div>`:'<div class="ax-empty">Nenhuma notificação enviada ainda.</div>'}</div>`}
+function apAparelhos(){return `<div class="ax-sec"><h3>Aparelhos de teste</h3><p class="d">Celulares que abriram o app e definiram um nome em Ajustes. Use para testar notificações antes de mandar para todos.</p>
+ ${APD.length?APD.map(d=>`<div class="ax-dev"><span class="ic">📱</span><div><b>${esc2(d.nome)}</b><small>${esc2(d.modelo||'Modelo desconhecido')} · visto em ${new Date(d.visto).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</small></div><button onclick="APDEST='teste';APT='notif';render()">Testar</button><button class="ax-ib x" title="Remover" onclick="apRmAp('${esc2(d.token)}')">✕</button></div>`).join(''):'<div class="ax-empty">Nenhum aparelho ainda.</div>'}</div>`}
+function apPreviaHtml(){
+ if(APT=='notif'){const agora=new Date();return `<div class="ph lock"><div class="sc"><div class="hr">${agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div><div class="dt">${agora.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'})}</div>
+  <div class="nt"><div class="ic">🐾</div><div><small>Miados do Destino · agora</small><b>${esc2(AP._pt)||'Título da notificação'}</b><p>${esc2(AP._px)||'A mensagem aparece aqui.'}</p></div></div></div></div>`}
+ const g=AP.gazeta,m=g.manchete,nav=on=>`<div class="nv">${['Gazeta','Elenco','Enigma','Temporada'].map(x=>`<span class="${x==on?'on':''}">${x}</span>`).join('')}</div>`;
+ if(APT=='temporada')return `<div class="ph"><div class="sc"><div class="bd" style="padding-top:22px"><div class="ms" style="margin:0;text-align:left;padding-bottom:4px"><b style="font-size:22px">Temporada 1</b></div>${AP.temporada.map(x=>`<div class="cp"><b>${x.n}</b><div><h5>${esc2(x.titulo)}</h5><p>${esc2(x.sinopse)}</p></div><span class="pl ${x.status}">${x.status=='lancado'?'Assistir':'🔔 Lembrar'}</span></div>`).join('')}</div>${nav('Temporada')}</div></div>`;
+ if(APT=='enigma')return `<div class="ph"><div class="sc"><div class="bd" style="padding-top:22px"><div class="k">O desenho de Haneul</div><h4>Cinco gatos antes dos cinco gatos</h4><img src="${SITE_APP}/enigma/${AP.enigma?.revelado?'desenho-milka':'desenho'}.jpg" style="width:100%;border:5px solid #fff;box-shadow:0 2px 6px #0003;transform:rotate(-1.5deg);margin:6px 0 10px"><p style="font-size:10px">${AP.enigma?.revelado?'O quinto gato chegou: é a Milka.':'Quatro, ele pintou. O quinto ficou em branco.'}</p></div>${nav('Enigma')}</div></div>`;
+ if(APT=='post'){const po=AP.postDoDia||{},rec=po.recentes||[],p=rec.find(x=>x.id==po.fixo)||rec[0];return `<div class="ph"><div class="sc"><div class="bd" style="padding-top:22px"><div class="ms" style="margin:0;text-align:left;padding-bottom:4px"><b style="font-size:22px">Post do dia</b></div>${p?`<div class="ig"><img src="${esc2(p.img)}"><p><b>miadosdodestino</b> ${esc2((p.legenda||'').split('\n')[0])}</p></div>`:'<p>Sem post.</p>'}</div>${nav('Gazeta')}</div></div>`}
+ return `<div class="ph"><div class="sc"><div class="tp"><span>${esc2(g.edicao)}</span><span>Temporada 1</span></div><div class="ms"><b>Gazeta do Destino</b><i>Todas as notícias de Miados do Destino</i></div>
+  <div class="bd"><div class="k">${esc2(m.kicker)}</div><h4>${esc2(m.titulo)}</h4><div class="ln">${esc2(m.linha)}</div>${m.img?`<img class="im" src="${esc2(m.img)}" alt="">`:''}<div class="tx">${esc2(m.texto).split('\n').filter(Boolean).map(p=>`<p style="margin:0 0 4px">${p}</p>`).join('')}</div>
+  ${g.materias.slice(0,2).map(x=>`<div class="st"><div class="k">${esc2(x.kicker)}</div><h5>${esc2(x.titulo)}</h5><p>${esc2(x.texto)}</p></div>`).join('')}</div>${nav('Gazeta')}</div></div>`}
+function apPrevia(){const e=$('#ax-prev');if(e)e.innerHTML=apPreviaHtml()}
+function apSalvaTela(){if(!AP)return;const v=id=>{const e=$('#'+id);return e?e.value:null};const g=AP.gazeta;
+ if($('#am-t')){g.edicao=v('ag-ed');Object.assign(g.manchete,{kicker:v('am-k'),titulo:v('am-t'),linha:v('am-s'),texto:v('am-x'),img:v('am-i'),legenda:v('am-l')});g.materias=g.materias.map((x,i)=>$('#mt-t'+i)?{kicker:v('mt-k'+i),titulo:v('mt-t'+i),texto:v('mt-x'+i),link:v('mt-l'+i),linkTxt:v('mt-lt'+i)}:x)}
+ if($('#tp-t0')||APT=='temporada')AP.temporada=AP.temporada.map((x,i)=>$('#tp-t'+i)?{n:i+1,titulo:v('tp-t'+i),sinopse:v('tp-x'+i),status:v('tp-s'+i)||'producao',data:v('tp-d'+i)}:x);
+ if($('#en-r'))AP.enigma={revelado:$('#en-r').checked};
+ const f=document.querySelector('input[name=pf]:checked');if(f)AP.postDoDia={...AP.postDoDia,fixo:f.value}}
+function apMove(lista,i,d){apSalvaTela();const a=lista=='materias'?AP.gazeta.materias:AP.temporada,j=i+d;[a[i],a[j]]=[a[j],a[i]];if(lista=='temporada')a.forEach((x,k)=>x.n=k+1);APSUJO=true;render()}
+async function apRm(lista,i){if(!(await confirma(lista=='materias'?'Remover esta matéria?':'Remover este capítulo?','Remover')))return;apSalvaTela();const a=lista=='materias'?AP.gazeta.materias:AP.temporada;a.splice(i,1);if(lista=='temporada')a.forEach((x,k)=>x.n=k+1);APSUJO=true;render()}
+async function apDescarta(){if(!(await confirma('Descartar as alterações não salvas?','Descartar')))return;AP=null;APSUJO=false;render()}
+async function apSalva(){apSalvaTela();const b=$('#ap-sv');b.disabled=true;b.textContent='Publicando…';try{const{recentes,post,...pd}=AP.postDoDia||{};const{_pt,_px,...resto}=AP;await api('/api/conteudo',{acao:'salvar',conteudo:{...resto,postDoDia:pd}});AP=null;await apCarrega()}catch(e){alert('Não foi possível salvar: '+e.message);b.disabled=false;b.textContent='Salvar e publicar no app'}}
+async function apPush(){const t=($('#pu-t').value||'').trim(),x=($('#pu-x').value||'').trim();if(!t||!x)return alert('Preencha o título e a mensagem.');
+ let alvo,nome;if(APDEST=='todos'){alvo={topico:'gazeta'};nome='todos que têm o app'}else if(APDEST=='ep'){const s=$('#pu-ep');alvo={topico:s.value};nome='quem pediu lembrete do '+s.selectedOptions[0].textContent}else{const s=$('#pu-ap');if(!s)return alert('Nenhum aparelho de teste.');alvo={aparelho:s.value};nome='o aparelho '+s.selectedOptions[0].textContent}
+ if(!(await confirma('Enviar “'+t+'” para '+nome+'?','Enviar',false)))return;
+ try{await api('/api/conteudo',{acao:'push',titulo:t,texto:x,...alvo});AP._pt='';AP._px='';const h=await api('/api/conteudo',{acao:'historico'});APH=h.log||[];render();alert('Notificação enviada.')}catch(e){alert('Não foi possível enviar: '+e.message)}}
 async function apRmAp(tk){if(!(await confirma('Remover este aparelho de teste?','Remover')))return;await api('/api/conteudo',{acao:'remover_aparelho',aparelho:tk});const d=await api('/api/conteudo',{acao:'aparelhos'});APD=d.aparelhos||[];render()}
 
 </script></body></html>
