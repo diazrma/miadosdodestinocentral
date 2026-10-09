@@ -32,6 +32,10 @@ const ESCOPOS = 'user.info.basic,video.publish,video.upload,video.list';
 // horários do TikTok (Vercel Cron em UTC): a = 12h, b = 16h, c = 19h de Brasília.
 // alvo = quantos posts do dia já devem ter saído depois daquele horário, conforme posts por dia (1, 2 ou 3)
 const ALVO = { 1: { a: 1 }, 2: { a: 1, c: 2 }, 3: { a: 1, b: 2, c: 3 } };
+// chaves do app no TikTok: 'teste' (Sandbox) e 'definitiva' (Production, vale depois da aprovação)
+const chaves = tipo => tipo === 'definitiva'
+  ? { key: process.env.TIKTOK_PROD_CLIENT_KEY, secret: process.env.TIKTOK_PROD_CLIENT_SECRET }
+  : { key: process.env.TIKTOK_CLIENT_KEY, secret: process.env.TIKTOK_CLIENT_SECRET };
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------- dados
@@ -88,9 +92,10 @@ async function ttConta(r) {
   const c = await dbGet('tiktok_conta');
   if (!c) return null;
   if (Date.now() < c.expira - 5 * 60e3) return c;
+  const k = chaves(c.chaves);
   // renova o token (dura 24 h; o de renovação, 1 ano)
   const j = await (await fetch(TT + '/v2/oauth/token/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_key: process.env.TIKTOK_CLIENT_KEY, client_secret: process.env.TIKTOK_CLIENT_SECRET, grant_type: 'refresh_token', refresh_token: c.refresh }) })).json();
+    body: new URLSearchParams({ client_key: k.key, client_secret: k.secret, grant_type: 'refresh_token', refresh_token: c.refresh }) })).json();
   if (!j.access_token) { if (r) registrar(r, 'tiktok', 'Não consegui renovar o acesso ao TikTok: conecte de novo.'); return null; }
   const n = { ...c, token: j.access_token, refresh: j.refresh_token || c.refresh, expira: Date.now() + j.expires_in * 1000 };
   await dbSet('tiktok_conta', n);
@@ -115,7 +120,7 @@ async function tt(c, path, body, q = '') {
 async function videosTikTok(c) {
   const out = []; let cursor;
   for (let i = 0; i < 10; i++) {
-    const d = await tt(c, '/v2/video/list/', { max_count: 20, ...(cursor ? { cursor } : {}) }, '?fields=id,title,video_description,create_time,share_url');
+    const d = await tt(c, '/v2/video/list/', { max_count: 20, ...(cursor ? { cursor } : {}) }, '?fields=id,title,video_description,create_time,share_url,cover_image_url,view_count,like_count,comment_count,share_count');
     out.push(...(d.videos || []));
     if (!d.has_more) break; cursor = d.cursor;
   }
@@ -217,6 +222,20 @@ async function conferirStatus(r, c) {
   }
   return pend.length;
 }
+// números do Kwai: lê a página pública do perfil (os 15 vídeos mais recentes). O Kwai não tem API;
+// os dados vêm num bloco do site (window.__NUXT__), avaliado num contexto isolado, sem acesso ao servidor
+async function numerosKwai(usuario) {
+  const h = await (await fetch('https://www.kwai.com/@' + encodeURIComponent(usuario), { headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36', 'Accept-Language': 'pt-BR' } })).text();
+  const i = h.indexOf('window.__NUXT__='), j = h.indexOf('</script>', i);
+  if (i < 0 || j < 0) throw new Error('não consegui ler o perfil do Kwai');
+  const d = require('vm').runInNewContext('(' + h.slice(i + 16, j).trim().replace(/;$/, '') + ')', Object.create(null), { timeout: 500 });
+  const feeds = (d?.data || []).map(x => x?.feedsData?.feeds).find(Array.isArray) || [];
+  const txt = s => String(s || '').replace(/&([a-z]+|#\d+);/gi, (m, e) => ({ amp: '&', quot: '"', ccedil: 'ç', atilde: 'ã', otilde: 'õ', aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú', acirc: 'â', ecirc: 'ê', ocirc: 'ô', agrave: 'à' })[e.toLowerCase()] || (e[0] === '#' ? String.fromCharCode(+e.slice(1)) : m));
+  return feeds.filter(v => !v.kwai_id || String(v.kwai_id).toLowerCase() === usuario.toLowerCase() || v.user_name).map(v => ({
+    id: String(v.photo_id_str || v.photo_id), titulo: txt(v.caption).slice(0, 160), data: v.timestamp ? new Date(+v.timestamp).toISOString() : null,
+    link: `https://www.kwai.com/@${usuario}/video/${v.photo_id_str || v.photo_id}`, capa: (v.cover_thumbnail_urls || [])[0]?.url || '',
+    views: +v.view_count || 0, curtidas: +v.like_count || 0, comentarios: +v.comment_count || 0, compart: +v.forward_count || 0 }));
+}
 const avisarKwai = () => avisarEquipe('📲 Kwai: o post de hoje está pronto', 'Abra a Central › TikTok e Kwai: baixe a imagem, copie a legenda e poste. Depois toque em "Postei".');
 async function avisarEquipe(titulo, texto) {
   const ap = (await dbGet('push_aparelhos')) || [];
@@ -237,7 +256,11 @@ async function diario(r, forcarId, horario = 'a') {
   else {
     try {
       const p = await publicarTikTok(c, itT, ttOpcoes(r));
-      if (p.privacidade !== 'RASCUNHO') r.aguardando = false;
+      if (p.privacidade !== 'RASCUNHO') {
+        r.aguardando = false;
+        // primeiro post público depois da aprovação: avisa a equipe uma vez
+        if (p.privacidade !== 'SELF_ONLY' && !r.liberado) { r.liberado = true; registrar(r, 'tiktok', '🎉 O TikTok liberou o app: a partir de agora os posts saem públicos e sozinhos.'); await avisarEquipe('🎉 TikTok liberado', 'O primeiro post automático saiu público no TikTok. A partir de agora é tudo sozinho.'); }
+      }
       itT.tiktok = { estado: 'postado', quando: new Date().toISOString(), dia: hojeBR(), publish_id: p.publish_id, privacidade: p.privacidade };
       registrar(r, 'tiktok', p.privacidade === 'RASCUNHO' ? `Enviado como rascunho (${p.formato}): abra o TikTok, toque na notificação da caixa de entrada e publique. ${textos(itT.legenda).titulo}` : `Publicado (${p.formato}, ${p.privacidade === 'SELF_ONLY' ? 'privado até a auditoria' : 'público'}): ${textos(itT.legenda).titulo}`);
       if (p.privacidade === 'RASCUNHO') await avisarEquipe('🎵 TikTok: rascunho pronto', 'Abra o TikTok e toque na notificação da caixa de entrada para publicar o post de hoje.');
@@ -250,8 +273,8 @@ async function diario(r, forcarId, horario = 'a') {
         registrar(r, 'tiktok', e.aguardando ? 'Aguardando a aprovação do app no TikTok: nada foi publicado e a fila continua igual.' : 'Falhou: ' + e.message);
     }
   }
-  // Kwai: separa o do dia e avisa (só no horário do meio-dia)
-  if (!forcarId && horario === 'a') {
+  // Kwai: sem publicação (o Kwai não tem API); a Central só lê os números do perfil público
+  if (false) {
     const ja = r.ordem.find(id => r.itens[id]?.kwai?.dia === hojeBR());
     const itK = ja ? r.itens[ja] : proximo(r, 'kwai');
     if (itK && !ja) {
@@ -290,9 +313,9 @@ module.exports = async (req, res) => {
       const est = await dbGet('tiktok_estado');
       if (!q.code || !est || q.state !== est.state || Date.now() - est.t > 15 * 60e3) return res.redirect(302, '/?tiktok=erro');
       const j = await (await fetch(TT + '/v2/oauth/token/', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_key: process.env.TIKTOK_CLIENT_KEY, client_secret: process.env.TIKTOK_CLIENT_SECRET, code: String(q.code), grant_type: 'authorization_code', redirect_uri: REDIRECT }) })).json();
+        body: new URLSearchParams({ client_key: chaves(est.chaves).key, client_secret: chaves(est.chaves).secret, code: String(q.code), grant_type: 'authorization_code', redirect_uri: REDIRECT }) })).json();
       if (!j.access_token) return res.redirect(302, '/?tiktok=erro');
-      const conta = { token: j.access_token, refresh: j.refresh_token, expira: Date.now() + j.expires_in * 1000, open_id: j.open_id, escopos: j.scope, por: est.por };
+      const conta = { token: j.access_token, refresh: j.refresh_token, expira: Date.now() + j.expires_in * 1000, open_id: j.open_id, escopos: j.scope, por: est.por, chaves: est.chaves || 'teste' };
       try { const info = await tt(conta, '/v2/post/publish/creator_info/query/'); conta.nome = info.creator_nickname; conta.usuario = info.creator_username; conta.privacidades = info.privacy_level_options; } catch (e) {}
       await dbSet('tiktok_conta', conta);
       return res.redirect(302, '/?tiktok=ok');
@@ -320,7 +343,7 @@ module.exports = async (req, res) => {
       if (c && await conferirStatus(r, await ttConta(r).catch(() => null)).catch(() => 0)) await gravar(r);
       return res.json({ fila: r.ordem.map(id => r.itens[id]).filter(Boolean), config: r.config || {}, aguardando: !!r.aguardando, log: (r.log || []).slice().reverse(), atualizado: r.atualizado || null,
         tiktok: c ? { nome: c.nome || '', usuario: c.usuario || '', escopos: c.escopos || '', privacidades: c.privacidades || [] } : null,
-        app: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET), verificacao: ((await dbGet('tiktok_verificacao')) || {}).nome || '' });
+        app: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET), definitiva: !!(chaves('definitiva').key && chaves('definitiva').secret), liberado: !!r.liberado, verificacao: ((await dbGet('tiktok_verificacao')) || {}).nome || '' });
     }
     if (b.acao === 'atualizar') { const o = await atualizar(r); await gravar(r); return res.json(o); }
     if (b.acao === 'marcar') {
@@ -347,16 +370,39 @@ module.exports = async (req, res) => {
       const m = await midiaInstagram(b.id);
       return res.json({ fotos: (m.fotos || []).map((_, i) => `/midia/${b.id}_${i}.jpg`), video: m.video || '' });
     }
+    // números: TikTok vem da API (video.list, guardado por 1 hora); Kwai é anotado pela equipe
+    if (b.acao === 'numeros') {
+      let st = r.ttStats;
+      if (b.atualizar || !st || Date.now() - new Date(st.quando) > 3600e3) {
+        const c = await ttConta(r);
+        if (c) {
+          try {
+            const vids = await videosTikTok(c);
+            st = r.ttStats = { quando: new Date().toISOString(), videos: vids.map(v => ({ id: v.id, titulo: (v.title || v.video_description || '').slice(0, 120), data: v.create_time ? new Date(v.create_time * 1000).toISOString() : null,
+              link: v.share_url || '', capa: v.cover_image_url || '', views: v.view_count || 0, curtidas: v.like_count || 0, comentarios: v.comment_count || 0, compart: v.share_count || 0 })) };
+            await gravar(r);
+          } catch (e) { st = { ...(st || {}), erro: e.message }; }
+        }
+      }
+      let kw = r.kwStats;
+      if (b.atualizar || !kw || Date.now() - new Date(kw.quando) > 3600e3) {
+        const usuario = r.config?.kwaiUsuario || 'miadosdodestino';
+        try { kw = r.kwStats = { quando: new Date().toISOString(), usuario, videos: await numerosKwai(usuario) }; await gravar(r); }
+        catch (e) { kw = { ...(kw || {}), erro: e.message }; }
+      }
+      return res.json({ tiktok: st || null, kwai: kw || null, revisao: r.config?.revisao || { enviada: '2026-10-09' } });
+    }
     if (b.acao === 'limpar_log') { r.log = []; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'config') { const t = b.config?.tt || {};
       r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false, tiktokPorDia: [1, 2, 3].includes(+b.config?.tiktokPorDia) ? +b.config.tiktokPorDia : 1,
         tt: { privacidade: ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'].includes(t.privacidade) ? t.privacidade : '', comentarios: t.comentarios !== false, dueto: t.dueto !== false, costura: t.costura !== false, marcaPropria: !!t.marcaPropria, rascunho: !!t.rascunho } }; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'tiktok_login') {
-      if (!process.env.TIKTOK_CLIENT_KEY) return res.status(400).json({ erro: 'Falta configurar TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET na Vercel' });
+      const tipo = b.definitiva ? 'definitiva' : 'teste', k = chaves(tipo);
+      if (!k.key || !k.secret) return res.status(400).json({ erro: 'Faltam as chaves do TikTok na Vercel' });
       const state = crypto.randomBytes(16).toString('hex');
-      await dbSet('tiktok_estado', { state, t: Date.now(), por: a.u.nome });
+      await dbSet('tiktok_estado', { state, t: Date.now(), por: a.u.nome, chaves: tipo });
       const u = new URL('https://www.tiktok.com/v2/auth/authorize/');
-      Object.entries({ client_key: process.env.TIKTOK_CLIENT_KEY, scope: ESCOPOS, response_type: 'code', redirect_uri: REDIRECT, state }).forEach(([k, v]) => u.searchParams.set(k, v));
+      Object.entries({ client_key: k.key, scope: ESCOPOS, response_type: 'code', redirect_uri: REDIRECT, state }).forEach(([k, v]) => u.searchParams.set(k, v));
       return res.json({ url: u.toString() });
     }
     if (b.acao === 'tiktok_verificacao') {
@@ -371,4 +417,5 @@ module.exports = async (req, res) => {
 // exportado para testes
 module.exports.parecido = parecido;
 module.exports.textos = textos;
+module.exports.numerosKwai = numerosKwai;
 module.exports.ajustarFoto = ajustarFoto;
