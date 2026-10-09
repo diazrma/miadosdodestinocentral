@@ -335,7 +335,9 @@ module.exports = async (req, res) => {
 
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
-    if (!a.menus.includes('publicar')) return res.status(403).json({ erro: 'Sem permissão (menu Publicar)' });
+    // os números (TikTok e Kwai) também aparecem no Relatório e no Feedback
+    const soNumeros = req.body?.acao === 'numeros' && !req.body?.atualizar && ['relatorio', 'feed'].some(m => a.menus.includes(m));
+    if (!a.menus.includes('publicar') && !soNumeros) return res.status(403).json({ erro: 'Sem permissão (menu Publicar)' });
     const b = req.body || {}, r = await ler();
 
     if (b.acao === 'estado') {
