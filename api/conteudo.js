@@ -128,8 +128,9 @@ module.exports = async (req, res) => {
     if (b.acao === 'registrar') {
       const token = String(b.token || ''), nome = String(b.nome || '').trim().slice(0, 40) || 'Aparelho sem nome';
       if (token.length < 100 || token.length > 400) return res.status(400).json({ erro: 'Token inválido' });
-      const ap = (await dbGet('push_aparelhos') || []).filter(x => x.token !== token);
-      ap.push({ token, nome, modelo: String(b.modelo || '').slice(0, 60), visto: new Date().toISOString() });
+      const todos = await dbGet('push_aparelhos') || [], antes = todos.find(x => x.token === token);
+      const ap = todos.filter(x => x.token !== token);
+      ap.push({ token, nome, modelo: String(b.modelo || '').slice(0, 60), visto: new Date().toISOString(), ...(antes?.equipe ? { equipe: true } : {}) });
       await dbSet('push_aparelhos', ap.slice(-500));
       return res.json({ ok: 1 });
     }
@@ -182,7 +183,9 @@ module.exports = async (req, res) => {
 
     if (b.acao === 'testadores') return res.json({ lista: (await dbGet('testadores') || []).slice().reverse() });
     if (b.acao === 'remover_testador') { await dbSet('testadores', (await dbGet('testadores') || []).filter(x => x.email !== b.email)); return res.json({ ok: 1 }); }
-    if (b.acao === 'aparelhos') return res.json({ aparelhos: (await dbGet('push_aparelhos') || []).map(({ token, nome, modelo, visto }) => ({ token, nome, modelo, visto })).reverse() });
+    if (b.acao === 'aparelhos') return res.json({ aparelhos: (await dbGet('push_aparelhos') || []).map(({ token, nome, modelo, visto, equipe }) => ({ token, nome, modelo, visto, equipe: !!equipe })).reverse() });
+    // aparelhos da equipe recebem os avisos internos (Kwai do dia, rascunho do TikTok); o resto do público não
+    if (b.acao === 'equipe_aparelho') { await dbSet('push_aparelhos', (await dbGet('push_aparelhos') || []).map(x => x.token === b.aparelho ? { ...x, equipe: !!b.equipe } : x)); return res.json({ ok: 1 }); }
     if (b.acao === 'remover_aparelho') { await dbSet('push_aparelhos', (await dbGet('push_aparelhos') || []).filter(x => x.token !== b.aparelho)); return res.json({ ok: 1 }); }
     if (b.acao === 'historico') return res.json({ log: (await dbGet('push_log') || []).slice().reverse() });
 

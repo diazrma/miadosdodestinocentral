@@ -127,29 +127,34 @@ function textos(legenda) {
   const titulo = (l.split('\n').find(x => x.trim()) || 'Miados do Destino').slice(0, 89);
   return { titulo, descricao: l.slice(0, 3990) };
 }
-async function publicarTikTok(c, item) {
-  // tenta publicar direto; se o TikTok recusar por o app ainda não ter passado na revisão,
-  // manda como rascunho para a caixa de entrada do TikTok (a equipe toca na notificação e publica)
-  try { return await enviarTikTok(c, item, 'direto'); }
+// opções de publicação escolhidas pela equipe na Central (exigência das regras do TikTok para Direct Post)
+const ttOpcoes = r => ({ privacidade: '', comentarios: true, dueto: true, costura: true, marcaPropria: false, rascunho: false, ...(r.config?.tt || {}) });
+async function publicarTikTok(c, item, op) {
+  if (!op.privacidade) throw new Error('escolha a privacidade nas opções de publicação do TikTok');
+  // tenta publicar direto. Enquanto o app não for aprovado, o TikTok recusa: a Central espera a aprovação
+  // (ou, se a equipe ligou essa opção, manda como rascunho para a caixa de entrada)
+  try { return await enviarTikTok(c, item, 'direto', op); }
   catch (e) {
-    if (e.codigo !== 'unaudited_client_can_only_post_to_private_accounts' || !(c.escopos || '').includes('video.upload')) throw e;
-    return await enviarTikTok(c, item, 'rascunho');
+    if (e.codigo !== 'unaudited_client_can_only_post_to_private_accounts') throw e;
+    if (!op.rascunho || !(c.escopos || '').includes('video.upload')) throw Object.assign(new Error('aguardando a aprovação do app no TikTok'), { aguardando: true });
+    return await enviarTikTok(c, item, 'rascunho', op);
   }
 }
-async function enviarTikTok(c, item, modo) {
+async function enviarTikTok(c, item, modo, op) {
   const m = await midiaInstagram(item.id), { titulo, descricao } = textos(item.legenda);
   let privacidade = 'RASCUNHO', comum = {};
   if (modo === 'direto') {
-    const opcoes = (await tt(c, '/v2/post/publish/creator_info/query/')).privacy_level_options || [];
-    privacidade = opcoes.includes('PUBLIC_TO_EVERYONE') ? 'PUBLIC_TO_EVERYONE' : opcoes.includes('FOLLOWER_OF_CREATOR') ? 'FOLLOWER_OF_CREATOR' : 'SELF_ONLY';
-    comum = { privacy_level: privacidade, disable_comment: false };
+    const info = await tt(c, '/v2/post/publish/creator_info/query/');
+    if (!(info.privacy_level_options || []).includes(op.privacidade)) throw new Error('a privacidade escolhida não está disponível para esta conta: escolha de novo nas opções');
+    privacidade = op.privacidade;
+    comum = { privacy_level: privacidade, disable_comment: !op.comentarios || !!info.comment_disabled, brand_organic_toggle: !!op.marcaPropria, brand_content_toggle: false };
   }
   if (m.tipo === 'video' || (m.tipo === 'misto' && !m.fotos.length)) {
     // vídeo: baixa do Instagram e envia em um pedaço só (FILE_UPLOAD)
     const buf = Buffer.from(await (await fetch(m.video)).arrayBuffer());
     const source_info = { source: 'FILE_UPLOAD', video_size: buf.length, chunk_size: buf.length, total_chunk_count: 1 };
     const d = modo === 'direto'
-      ? await tt(c, '/v2/post/publish/video/init/', { post_info: { ...comum, title: descricao.slice(0, 2190), is_aigc: true, disable_duet: false, disable_stitch: false }, source_info })
+      ? await tt(c, '/v2/post/publish/video/init/', { post_info: { ...comum, title: descricao.slice(0, 2190), is_aigc: true, disable_duet: !op.dueto, disable_stitch: !op.costura }, source_info })
       : await tt(c, '/v2/post/publish/inbox/video/init/', { source_info });
     const up = await fetch(d.upload_url, { method: 'PUT', headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(buf.length), 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}` }, body: buf });
     if (!up.ok) throw new Error('TikTok recusou o envio do vídeo (' + up.status + ')');
@@ -216,7 +221,8 @@ const avisarKwai = () => avisarEquipe('📲 Kwai: o post de hoje está pronto', 
 async function avisarEquipe(titulo, texto) {
   const ap = (await dbGet('push_aparelhos')) || [];
   let ok = 0;
-  for (const a of ap.slice(-10)) { try { await enviarPush({ titulo, texto, token: a.token }); ok++; } catch (e) {} }
+  // só os celulares marcados como da equipe (Central › App › Aparelhos), nunca o público do app
+  for (const a of ap.filter(x => x.equipe).slice(-10)) { try { await enviarPush({ titulo, texto, token: a.token }); ok++; } catch (e) {} }
   return ok;
 }
 async function diario(r, forcarId, horario = 'a') {
@@ -230,12 +236,19 @@ async function diario(r, forcarId, horario = 'a') {
   else if (!forcarId && r.ordem.filter(id => r.itens[id]?.tiktok?.dia === hojeBR()).length >= ALVO[r.config?.tiktokPorDia || 1][horario]) out.tiktok = 'já postou neste horário';
   else {
     try {
-      const p = await publicarTikTok(c, itT);
+      const p = await publicarTikTok(c, itT, ttOpcoes(r));
+      if (p.privacidade !== 'RASCUNHO') r.aguardando = false;
       itT.tiktok = { estado: 'postado', quando: new Date().toISOString(), dia: hojeBR(), publish_id: p.publish_id, privacidade: p.privacidade };
       registrar(r, 'tiktok', p.privacidade === 'RASCUNHO' ? `Enviado como rascunho (${p.formato}): abra o TikTok, toque na notificação da caixa de entrada e publique. ${textos(itT.legenda).titulo}` : `Publicado (${p.formato}, ${p.privacidade === 'SELF_ONLY' ? 'privado até a auditoria' : 'público'}): ${textos(itT.legenda).titulo}`);
       if (p.privacidade === 'RASCUNHO') await avisarEquipe('🎵 TikTok: rascunho pronto', 'Abra o TikTok e toque na notificação da caixa de entrada para publicar o post de hoje.');
       out.tiktok = 'ok';
-    } catch (e) { registrar(r, 'tiktok', 'Falhou: ' + e.message); out.tiktok = 'erro: ' + e.message; }
+    } catch (e) {
+      out.tiktok = (e.aguardando ? '' : 'erro: ') + e.message;
+      if (e.aguardando) r.aguardando = true;
+      // aguardando aprovação: registra uma vez por dia, sem gastar a fila
+      if (!e.aguardando || !(r.log || []).some(l => l.texto.startsWith('Aguardando') && l.quando.slice(0, 10) === new Date().toISOString().slice(0, 10)))
+        registrar(r, 'tiktok', e.aguardando ? 'Aguardando a aprovação do app no TikTok: nada foi publicado e a fila continua igual.' : 'Falhou: ' + e.message);
+    }
   }
   // Kwai: separa o do dia e avisa (só no horário do meio-dia)
   if (!forcarId && horario === 'a') {
@@ -305,7 +318,7 @@ module.exports = async (req, res) => {
     if (b.acao === 'estado') {
       const c = await dbGet('tiktok_conta');
       if (c && await conferirStatus(r, await ttConta(r).catch(() => null)).catch(() => 0)) await gravar(r);
-      return res.json({ fila: r.ordem.map(id => r.itens[id]).filter(Boolean), config: r.config || {}, log: (r.log || []).slice().reverse(), atualizado: r.atualizado || null,
+      return res.json({ fila: r.ordem.map(id => r.itens[id]).filter(Boolean), config: r.config || {}, aguardando: !!r.aguardando, log: (r.log || []).slice().reverse(), atualizado: r.atualizado || null,
         tiktok: c ? { nome: c.nome || '', usuario: c.usuario || '', escopos: c.escopos || '', privacidades: c.privacidades || [] } : null,
         app: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET), verificacao: ((await dbGet('tiktok_verificacao')) || {}).nome || '' });
     }
@@ -326,7 +339,7 @@ module.exports = async (req, res) => {
       if (!r.itens[b.id]) return res.status(404).json({ erro: 'Post não encontrado' });
       if (r.itens[b.id].tiktok?.estado === 'postado') return res.status(400).json({ erro: 'Esse post já foi para o TikTok' });
       const o = await diario(r, b.id); await gravar(r);
-      return o.tiktok === 'ok' ? res.json({ ok: 1 }) : res.status(400).json({ erro: String(o.tiktok) });
+      return o.tiktok === 'ok' ? res.json({ ok: 1 }) : res.status(400).json({ erro: String(o.tiktok).replace(/^erro: /, '') });
     }
     // Kwai: arquivos do post para baixar (fotos pela /midia/, vídeo pelo link do Instagram, que vale por algumas horas)
     if (b.acao === 'midia') {
@@ -335,7 +348,9 @@ module.exports = async (req, res) => {
       return res.json({ fotos: (m.fotos || []).map((_, i) => `/midia/${b.id}_${i}.jpg`), video: m.video || '' });
     }
     if (b.acao === 'limpar_log') { r.log = []; await gravar(r); return res.json({ ok: 1 }); }
-    if (b.acao === 'config') { r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false, tiktokPorDia: [1, 2, 3].includes(+b.config?.tiktokPorDia) ? +b.config.tiktokPorDia : 1 }; await gravar(r); return res.json({ ok: 1 }); }
+    if (b.acao === 'config') { const t = b.config?.tt || {};
+      r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false, tiktokPorDia: [1, 2, 3].includes(+b.config?.tiktokPorDia) ? +b.config.tiktokPorDia : 1,
+        tt: { privacidade: ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'].includes(t.privacidade) ? t.privacidade : '', comentarios: t.comentarios !== false, dueto: t.dueto !== false, costura: t.costura !== false, marcaPropria: !!t.marcaPropria, rascunho: !!t.rascunho } }; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'tiktok_login') {
       if (!process.env.TIKTOK_CLIENT_KEY) return res.status(400).json({ erro: 'Falta configurar TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET na Vercel' });
       const state = crypto.randomBytes(16).toString('hex');
