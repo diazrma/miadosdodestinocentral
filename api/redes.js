@@ -5,7 +5,7 @@
 // post do dia e avisa a equipe no celular para postar com dois toques.
 //
 // GET  /api/redes (ou ?acao=diario)           -> agendado (Vercel Cron, 12h): posta no TikTok e separa o do Kwai
-// GET  /api/redes?acao=tiktok_retorno&code=…  -> volta do login do TikTok (OAuth)
+// GET  /tiktok/retorno?code=…                -> volta do login do TikTok (OAuth; rewrite para ?acao=tiktok_retorno)
 // GET  /midia/<arquivo>                       -> imagens públicas para o TikTok puxar (prefixo verificado) e o
 //                                                arquivo de verificação do TikTok (rewrite em vercel.json)
 // POST /api/redes (equipe com o menu Publicar):
@@ -26,7 +26,7 @@ const { enviarPush } = require('../lib/fcm');
 const CENTRAL = 'https://miadosdodestinocentral.vercel.app';
 const IG = 'https://graph.instagram.com';
 const TT = 'https://open.tiktokapis.com';
-const REDIRECT = CENTRAL + '/api/redes?acao=tiktok_retorno';
+const REDIRECT = CENTRAL + '/tiktok/retorno'; // o TikTok não aceita ? no Redirect URI: rewrite em vercel.json
 const ESCOPOS = 'user.info.basic,video.publish,video.list';
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 

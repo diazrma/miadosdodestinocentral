@@ -486,7 +486,7 @@ function redes(){if(!RD2){rdCarrega();return '<div class="ax-sec"><div class="ax
  <details class="ax-sec"><summary><b>⚙️ Configurar o TikTok</b> (uma vez)</summary>
   <ol class="rd-passos"><li>Entre em <a href="https://developers.tiktok.com/apps" target="_blank">developers.tiktok.com</a> com a conta do TikTok da série e crie um app.</li>
    <li>Adicione os produtos <b>Login Kit</b> e <b>Content Posting API</b> (ative <b>Direct Post</b>). Peça os escopos <code>user.info.basic</code>, <code>video.publish</code> e <code>video.list</code>.</li>
-   <li>Em Login Kit, cadastre o Redirect URI: <code>https://miadosdodestinocentral.vercel.app/api/redes?acao=tiktok_retorno</code></li>
+   <li>Em Login Kit, cadastre o Redirect URI: <code>https://miadosdodestinocentral.vercel.app/tiktok/retorno</code></li>
    <li>Em Content Posting API › <b>Verify URL properties</b>, escolha “URL prefix” com <code>https://miadosdodestinocentral.vercel.app/midia/</code>. O TikTok vai mostrar um arquivo para baixar: cole o nome e o conteúdo dele aqui embaixo e depois clique em Verify lá.</li>
    <li>Copie o <b>Client key</b> e o <b>Client secret</b> e mande para o Rodrigo cadastrar na Vercel (<code>TIKTOK_CLIENT_KEY</code> e <code>TIKTOK_CLIENT_SECRET</code>).</li>
    <li>Volte aqui e toque em <b>Conectar TikTok</b>. Depois envie o app para <b>auditoria</b> no TikTok (até ela ser aprovada, os posts saem privados).</li></ol>
