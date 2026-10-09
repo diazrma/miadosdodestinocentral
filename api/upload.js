@@ -2,7 +2,7 @@ const { generateClientTokenFromReadWriteToken, handleUploadPresigned } = require
 const { put, del, issueSignedToken } = require('@vercel/blob');
 const { auth } = require('../lib/db');
 const { SID, RW, cred } = require('../lib/blob');
-const TIPOS = ['image/jpeg', 'video/mp4', 'video/quicktime'], MAX = 300 * 1024 * 1024, OK = n => /^publicar\/[\w.-]+$/.test(n);
+const TIPOS = ['image/jpeg', 'video/mp4', 'video/quicktime'], MAX = 300 * 1024 * 1024, OK = n => /^(publicar|app)\/[\w.-]+$/.test(n);
 function explica(e) {
   const m = String(e.message || e);
   if (/private/i.test(m)) return m + ' → o Blob store está como PRIVADO; crie um store PÚBLICO (o Instagram precisa baixar o arquivo)';
@@ -19,8 +19,10 @@ module.exports = async (req, res) => {
   try {
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
-    if (!a.menus.includes('publicar')) return res.status(403).json({ erro: 'Sem permissão para publicar' });
     const b = req.body || {}, nome = String(b.nome || '');
+    // papéis de parede do app (pasta app/) valem para quem tem o menu App; o resto exige o menu Publicar
+    const menu = nome.startsWith('app/') && b.acao === 'enviar' ? 'app' : 'publicar';
+    if (!a.menus.includes(menu)) return res.status(403).json({ erro: menu === 'app' ? 'Sem permissão para o menu App' : 'Sem permissão para publicar' });
     if (b.type === 'blob.generate-presigned-url') {
       return res.json(await handleUploadPresigned({ body: b, request: req, getSignedToken: async pathname => {
         if (!OK(pathname)) throw new Error('Nome de arquivo inválido');

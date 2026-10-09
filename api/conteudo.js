@@ -2,12 +2,12 @@
 // GET  /api/conteudo          -> público (o app lê daqui): Gazeta, temporada, enigma e post do dia
 // POST /api/conteudo          -> equipe com acesso ao menu "app":
 //      { acao: 'salvar', conteudo }                 salva o conteúdo editado no painel
-//      { acao: 'push', titulo, texto, topico }      envia para um tópico (todos = 'gazeta', lembrete = 'ep-N')
+//      { acao: 'push', titulo, texto, topico }      envia para um tópico (todos = 'gazeta', lembrete = 'ep-N', vídeo da Milka = 'milka')
 //      { acao: 'push', titulo, texto, aparelho }    envia só para um aparelho (teste)
 //      { acao: 'aparelhos' } / { acao: 'historico' } listas para o painel
 // POST /api/conteudo { acao: 'registrar', token, nome } -> público: o app registra o aparelho para testes
-const crypto = require('crypto');
 const { auth, dbGet, dbSet } = require('../lib/db');
+const { enviarPush } = require('../lib/fcm');
 
 const SITE = 'https://miados-do-destino.vercel.app';
 const PADRAO = {
@@ -25,7 +25,7 @@ const PADRAO = {
       { kicker: 'Enigma', titulo: 'O desenho de Haneul guarda um segredo', texto: 'Uma casa, três pessoas e cinco gatos. Quatro estão pintados. O quinto ainda não.', link: '', linkTxt: '' },
       { kicker: 'Produção', titulo: 'Temporada 1 segue em produção', texto: 'Os capítulos estão sendo preparados. Ative o lembrete para saber primeiro.', link: '', linkTxt: '' },
       { kicker: 'Bastidores', titulo: 'Um projeto paralelo que começou em julho', texto: 'A série nasceu de Rodrigo Cardoso, na direção, e Ana Paula Guedes, criadora de conteúdo do Instagram Miados do Destino.', link: '', linkTxt: '' },
-      { kicker: 'Elenco felino', titulo: 'Naru, Zelda, Merlin, Spark e Milka roubam a cena', texto: 'Cinco gatos dividem os holofotes com Yoo Nari e Sr. Baek.', link: 'https://www.instagram.com/miadosdodestino/', linkTxt: 'Seguir no Instagram' }
+      { kicker: 'Elenco felino', titulo: 'Naru, Zelda, Merlin e Spark roubam a cena', texto: 'Quatro gatos dividem os holofotes com Yoo Nari e Sr. Baek. E o desenho de Haneul diz que falta um.', link: 'https://www.instagram.com/miadosdodestino/', linkTxt: 'Seguir no Instagram' }
     ]
   },
   temporada: [
@@ -36,8 +36,39 @@ const PADRAO = {
     { n: 5, titulo: 'Olhos Conhecidos', sinopse: 'Uma gata que faz coisas que só ela fazia.', status: 'producao' }
   ],
   enigma: { revelado: false },
-  postDoDia: { fixo: '' } // vazio = usa o post mais recente do Instagram
+  postDoDia: { fixo: '' }, // vazio = usa o post mais recente do Instagram
+  // vídeos do YouTube na Gazeta ("Na tela") e no topo do site: trailer, teasers
+  videos: [
+    { tipo: 'Trailer', titulo: 'Trailer oficial', yt: 'uYPZM0cPVrI', legenda: 'A noiva, a chuva e os gatos que parecem saber demais.' },
+    { tipo: 'Teaser', titulo: 'O primeiro vislumbre', yt: '_fp2-Pvxm-Q', legenda: 'Os primeiros segundos de Miados do Destino.' }
+  ],
+  // vídeo de apresentação de cada personagem (app e site); vazio = "em breve"
+  elenco: { yoonari: { video: 'y41wpQ1wWwc' }, baek: { video: '3hAGMUp8Tns' }, naru: { video: 'dNYaDa8nmfU' }, spark: { video: 'fHOSMOLgbvQ' }, zelda: { video: 'xSp4gPlOcLY' }, merlin: { video: 'p5K0jrwZx-4' }, milka: { video: '' } },
+  papeis: [],     // papéis de parede extras enviados pela Central (os do app já vêm dentro dele)
+  sussurros: [],  // frases do Sussurro do dia; vazio = as frases que vêm no app
+  recursos: { sussurro: true, quiz: true, papeis: true, sussurroIA: true, sussurroAviso: true },
+  // créditos: as fotos vêm do cadastro da Equipe (pessoa ligada pelo id ou pelo primeiro nome)
+  creditos: {
+    pessoas: [
+      { busca: 'rodrigo', nome: 'Rodrigo Cardoso', cargo: 'Direção', texto: 'Criou Miados do Destino, escreveu a história de Yoo Nari, do Sr. Baek e dos cinco gatos, e dirige cada cena, da chuva na primeira noite ao último miado.' },
+      { busca: 'ana', nome: 'Ana Paula Guedes', cargo: 'Criadora de conteúdo do Instagram', arroba: '@miadosdodestino', texto: 'Obrigado, Ana, por dar voz à série todos os dias. Cada post, cada story e cada resposta fizeram o Instagram virar a casa dos fãs antes mesmo da estreia. Sem você, os gatos ainda estariam miando sozinhos.' }
+    ],
+    carta: '', agradecimentos: ''
+  },
+  site: { apk: '' } // link para baixar o app (botão no site)
 };
+const ELENCO_IDS = ['yoonari', 'baek', 'naru', 'spark', 'zelda', 'merlin', 'milka'];
+const GATOS = ['naru', 'merlin', 'zelda', 'spark', 'milka'];
+const ytId = v => { const t = String(v || '').trim(), m = t.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([\w-]{11})/); return m ? m[1] : (/^[\w-]{11}$/.test(t) ? t : ''); };
+const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+const txt = (v, n) => String(v ?? '').slice(0, n);
+const https = v => /^https:\/\//.test(String(v || '')) ? String(v).slice(0, 500) : '';
+// troca a referência da pessoa pela foto do cadastro da Equipe (só nome, cargo, texto e foto vão para o público)
+async function creditosPublicos(cr) {
+  const us = await dbGet('users').catch(() => null) || [];
+  const acha = p => us.find(u => p.usuario && u.id === p.usuario) || (p.busca && us.find(u => String(u.nome || '').toLowerCase().split(' ')[0] === p.busca));
+  return { ...cr, pessoas: (cr.pessoas || []).map(p => { const u = acha(p); return { ...p, foto: p.fotoPropria || (u && u.foto) || '' }; }) };
+}
 
 // ---------- Instagram: post mais recente (cache de 3 horas)
 async function ultimoPost() {
@@ -61,38 +92,7 @@ async function ultimoPost() {
   } catch (e) { return c ? c.d : null; }
 }
 
-// ---------- Firebase Cloud Messaging (HTTP v1) com conta de serviço em FCM_SERVICE_ACCOUNT
-async function tokenGoogle(sa) {
-  const agora = Math.floor(Date.now() / 1000);
-  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const corpo = b64({ alg: 'RS256', typ: 'JWT' }) + '.' + b64({
-    iss: sa.client_email, scope: 'https://www.googleapis.com/auth/firebase.messaging',
-    aud: 'https://oauth2.googleapis.com/token', iat: agora, exp: agora + 3600
-  });
-  const assinatura = crypto.createSign('RSA-SHA256').update(corpo).sign(sa.private_key, 'base64url');
-  const r = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: corpo + '.' + assinatura })
-  });
-  const j = await r.json();
-  if (!j.access_token) throw new Error('Não foi possível autenticar no Firebase: ' + (j.error_description || j.error || r.status));
-  return j.access_token;
-}
-
-async function enviarPush({ titulo, texto, topico, token }) {
-  if (!process.env.FCM_SERVICE_ACCOUNT) throw new Error('FCM_SERVICE_ACCOUNT não configurado na Vercel');
-  const sa = JSON.parse(process.env.FCM_SERVICE_ACCOUNT);
-  const tk = await tokenGoogle(sa);
-  const r = await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-    method: 'POST', headers: { Authorization: 'Bearer ' + tk, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { ...(token ? { token } : { topic: topico }), notification: { title: titulo, body: texto }, android: { priority: 'high', notification: { channel_id: 'gazeta' } } } })
-  });
-  const j = await r.json();
-  if (!r.ok) throw new Error(j.error?.message || 'Falha ao enviar (' + r.status + ')');
-  return j.name;
-}
-
-const TOPICOS = /^(gazeta|ep-\d{1,2})$/;
+const TOPICOS = /^(gazeta|milka|sussurro|ep-\d{1,2})$/;
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -107,7 +107,10 @@ module.exports = async (req, res) => {
       const fixo = conteudo.postDoDia?.fixo;
       const post = posts && (posts.find(p => p.id === fixo) || posts[0]) || null;
       res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
-      return res.json({ ...conteudo, postDoDia: { ...conteudo.postDoDia, post, recentes: (posts || []).slice(0, 6) }, atualizado: salvo.atualizado || null });
+      const creditos = await creditosPublicos(conteudo.creditos || PADRAO.creditos);
+      const sh = await dbGet('sussurro_dia').catch(() => null);
+      const sussurroHoje = sh && sh.data === hojeBR() && (sh.gato !== 'milka' || conteudo.enigma?.revelado) ? { data: sh.data, gato: sh.gato, texto: sh.texto } : null;
+      return res.json({ ...conteudo, creditos, sussurroHoje, postDoDia: { ...conteudo.postDoDia, post, recentes: (posts || []).slice(0, 6) }, atualizado: salvo.atualizado || null });
     }
 
     const b = req.body || {};
@@ -132,6 +135,14 @@ module.exports = async (req, res) => {
         temporada: (c.temporada || []).filter(e => e && e.titulo).map((e, i) => ({ n: +e.n || i + 1, titulo: String(e.titulo).slice(0, 80), sinopse: String(e.sinopse || '').slice(0, 200), status: ['producao', 'breve', 'lancado'].includes(e.status) ? e.status : 'producao', data: e.data || '', link: e.link || '' })),
         enigma: { revelado: !!c.enigma?.revelado },
         postDoDia: { fixo: String(c.postDoDia?.fixo || '') },
+        videos: (Array.isArray(c.videos) ? c.videos : PADRAO.videos).map(v => ({ tipo: txt(v.tipo, 20), titulo: txt(v.titulo, 80), yt: ytId(v.yt), legenda: txt(v.legenda, 160) })).filter(v => v.yt && v.titulo).slice(0, 12),
+        elenco: Object.fromEntries(ELENCO_IDS.map(id => [id, { video: ytId(c.elenco?.[id]?.video), foto: https(c.elenco?.[id]?.foto) }])),
+        papeis: (Array.isArray(c.papeis) ? c.papeis : []).map(p => ({ id: txt(p.id, 40).replace(/[^\w-]/g, ''), titulo: txt(p.titulo, 40), tipo: ['bloqueio', 'inicio', 'ambos'].includes(p.tipo) ? p.tipo : 'bloqueio', img: https(p.img), mini: https(p.mini) })).filter(p => p.id && p.titulo && p.img).slice(0, 40),
+        sussurros: (Array.isArray(c.sussurros) ? c.sussurros : []).map(x => ({ gato: GATOS.includes(x.gato) ? x.gato : 'naru', texto: txt(x.texto, 160).trim() })).filter(x => x.texto).slice(0, 366),
+        recursos: { sussurro: c.recursos?.sussurro !== false, quiz: c.recursos?.quiz !== false, papeis: c.recursos?.papeis !== false, sussurroIA: c.recursos?.sussurroIA !== false, sussurroAviso: c.recursos?.sussurroAviso !== false },
+        creditos: { pessoas: (c.creditos?.pessoas || PADRAO.creditos.pessoas).slice(0, 8).map(p => ({ usuario: txt(p.usuario, 60), busca: txt(p.busca, 30), fotoPropria: https(p.fotoPropria), nome: txt(p.nome, 60), cargo: txt(p.cargo, 60), arroba: txt(p.arroba, 40), texto: txt(p.texto, 500) })).filter(p => p.nome),
+          carta: txt(c.creditos?.carta, 2000), agradecimentos: txt(c.creditos?.agradecimentos, 600) },
+        site: { apk: https(c.site?.apk) },
         atualizado: new Date().toISOString(), por: a.u.nome
       };
       if (JSON.stringify(limpo).length > 200000) return res.status(400).json({ erro: 'Conteúdo grande demais' });
@@ -150,7 +161,7 @@ module.exports = async (req, res) => {
       } else {
         const topico = String(b.topico || 'gazeta');
         if (!TOPICOS.test(topico)) return res.status(400).json({ erro: 'Destino inválido' });
-        envio = { titulo, texto, topico }; destino = topico === 'gazeta' ? 'Todos' : 'Lembrete do episódio ' + topico.slice(3);
+        envio = { titulo, texto, topico }; destino = topico === 'gazeta' ? 'Todos' : topico === 'milka' ? 'Quem pediu aviso do vídeo da Milka' : topico === 'sussurro' ? 'Quem recebe o Sussurro do dia' : 'Lembrete do episódio ' + topico.slice(3);
       }
       const id = await enviarPush(envio);
       const log = (await dbGet('push_log') || []).slice(-49);
