@@ -99,7 +99,7 @@ const RCSS=`.paper{background:#fffdf8;color:#1f1a14;font:14px/1.6 Inter,Helvetic
 .paper .rh{background:#17130f;background-image:radial-gradient(ellipse at top right,rgba(226,181,90,.22),transparent 60%);color:#efe6d2;padding:30px 40px;display:flex;justify-content:space-between;align-items:center;gap:16px}
 .paper .rk{font:600 11px Inter,Helvetica,Arial,sans-serif;letter-spacing:.28em;text-transform:uppercase;color:#e2b55a}
 .paper h1{font:800 36px/1.1 'Playfair Display',Georgia,serif;color:#f3d98f;margin:6px 0 4px}
-.paper .sub{color:#d9cbb0;font-size:15px}.paper .rl{font:italic 15px Georgia,serif;color:#bfae90;text-align:right;max-width:200px}
+.paper .sub{color:#d9cbb0;font-size:15px}.paper .ru{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none}.paper .ru img,.paper .ru .ri{width:78px;height:78px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px #e2b55a,0 8px 22px #0008;background:#3a2e20;color:#f3d98f;display:flex;align-items:center;justify-content:center;font:700 30px Georgia,serif}.paper .ru small{color:#d9cbb0;font-size:12px}.paper .rl{font:italic 15px Georgia,serif;color:#bfae90;text-align:right;max-width:200px}
 .paper .rb{padding:8px 40px 30px}
 .paper h2{font:700 21px 'Playfair Display',Georgia,serif;color:#1f1a14;margin:30px 0 10px;padding-bottom:6px;border-bottom:2px solid #e2b55a}
 .paper p{margin:6px 0}.paper .lead{font-size:15px;color:#3a3226;margin-top:14px}
@@ -125,7 +125,7 @@ const RCSS=`.paper{background:#fffdf8;color:#1f1a14;font:14px/1.6 Inter,Helvetic
 .paper .pf{margin:26px 40px 0;padding:12px 0 22px;border-top:1px solid #eadfca;color:#9b8c70;font-size:11px;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .paper table{width:100%;border-collapse:collapse;margin-top:10px}.paper th{background:#17130f;color:#f3d98f;padding:8px;font-size:12px;text-align:left}.paper td{padding:8px;border-bottom:1px solid #eadfca;font-size:13px}
 @media print{body{background:#fff!important}.paper{border:0;border-radius:0}.paper h2,.paper .k4,.paper .pl3,.paper .tp,.paper .mini,.paper svg{break-inside:avoid}}
-@media(max-width:640px){.paper .rh{padding:22px 18px;flex-direction:column;align-items:flex-start}.paper .rl{text-align:left}.paper .rb{padding:4px 18px 22px}.paper .pf{margin:20px 18px 0}.paper .k4{grid-template-columns:1fr 1fr}.paper .pl3,.paper .mn,.paper .tops{grid-template-columns:1fr}}`;document.head.insertAdjacentHTML('beforeend','<style>'+RCSS+'</style>');
+@media(max-width:640px){.paper .rh{padding:22px 18px}.paper .ru img,.paper .ru .ri{width:60px;height:60px}.paper .rb{padding:4px 18px 22px}.paper .pf{margin:20px 18px 0}.paper .k4{grid-template-columns:1fr 1fr}.paper .pl3,.paper .mn,.paper .tops{grid-template-columns:1fr}}`;document.head.insertAdjacentHTML('beforeend','<style>'+RCSS+'</style>');
 const V=p=>p.vis||p.alc,wdi=d=>(new Date(d+'T12:00:00').getDay()+6)%7,kmil=n=>n>=1000?(n/1000).toFixed(1).replace('.',',')+' mil':N(n),sg2=n=>(n>=0?'+':'')+Math.round(n*100)+'%';
 const mon=d=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()-wdi(d));return x.toISOString().slice(0,10)};
 function weeks(ps){const w={};ps.forEach(p=>{const k=mon(p.data);(w[k]=w[k]||Array(7).fill(0))[wdi(p.data)]+=V(p)});return Object.keys(w).sort().slice(-2).map(k=>{let c=0;return w[k].map(v=>c+=v)})}
@@ -176,7 +176,7 @@ function rep(){const PR=per(),ps=PR.ps,pv=PR.pv;if(!ps.length)return'';const k=R
  t2=k=='mes'?'Crescimento Semanal':k=='sem'?'Comparativo com a Semana Anterior':'Evolução Mensal',
  p2=k=='ano'?`No ano, o projeto somou <b>${N(tv)} visualizações</b>${dv==null?'':' ('+sg2(dv)+' em relação ao ano anterior)'}. O melhor mês foi <b>${MES[bi]}</b>, com ${N(mt[bi])} visualizações.`:(lc.d==null?'Ainda não há duas semanas com dados para comparar.':`${k=='sem'?'Nesta semana':'Na última semana'}, o projeto registrou ${lc.d>=0?'uma aceleração':'uma variação'} de <b>${sg2(lc.d)} em visualizações gerais</b> em comparação ao ciclo imediatamente anterior.`)+(ns==null?'':` O principal indicador de tração orgânica foi <b>${sg2(ns)} nas impressões para contas de não-seguidores</b>.`);
  const T0=st(ps),inter=ps.reduce((s,x)=>s+eng(x),0),ia=(S.notes||{})[PR.key+'_ia'];
- return `<div class="paper"><div class="rh"><div><div class="rk">Relatório de desempenho</div><h1>Miados do Destino</h1><div class="sub">${esc(PR.lab)}</div></div><div class="rl">“O destino não grita.<br>Ele sussurra.”</div></div><div class="rb">
+ return `<div class="paper"><div class="rh"><div><div class="rk">Relatório de desempenho</div><h1>Miados do Destino</h1><div class="sub">${esc(PR.lab)}</div></div>${ME?`<div class="ru">${ME.foto?`<img src="${ME.foto}" alt="">`:`<span class="ri">${esc(ME.nome[0].toUpperCase())}</span>`}<small>${esc(ME.nome)}</small></div>`:''}</div><div class="rb">
 <div class="k4"><div><small>Visualizações</small><b>${N(tv)}</b>${dv==null?'<span>no Instagram</span>':`<span class="${dv>=0?'up':'dn'}">${sg2(dv)} vs ${PR.ant}</span>`}</div>
 <div><small>Engajamento</small><b>${P(T0.t)}</b><span>${N(inter)} interações</span></div>
 <div><small>Seguidores</small><b>${fim?kmil(fim):'—'}</b><span>${ns==null?'no Instagram':`${sg2(ns)} views de não-seguidores`}</span></div>
