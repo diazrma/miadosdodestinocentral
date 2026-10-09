@@ -392,7 +392,11 @@ module.exports = async (req, res) => {
         try { kw = r.kwStats = { quando: new Date().toISOString(), usuario, videos: await numerosKwai(usuario) }; await gravar(r); }
         catch (e) { kw = { ...(kw || {}), erro: e.message }; }
       }
-      return res.json({ tiktok: st || null, kwai: kw || null, revisao: r.config?.revisao || { enviada: '2026-10-09' } });
+      // vídeo sem legenda (o Kwai mostra "..."): usa a legenda do post do Instagram do mesmo dia
+      const semTit = t => !String(t || '').replace(/[.\s…]/g, '');
+      const doDia = d => { if (!d) return ''; const t = new Date(d).getTime(), c = Object.values(r.itens).filter(x => Math.abs(new Date(x.data).getTime() - t) < 864e5 * 1.5).sort((a, b) => (['reels', 'video'].includes(b.tipo) ? 1 : 0) - (['reels', 'video'].includes(a.tipo) ? 1 : 0) || Math.abs(new Date(a.data) - t) - Math.abs(new Date(b.data) - t))[0]; return c ? textos(c.legenda).titulo : ''; };
+      const comTit = d => d && d.videos ? { ...d, videos: d.videos.map(v => semTit(v.titulo) ? { ...v, titulo: doDia(v.data) } : v) } : d;
+      return res.json({ tiktok: comTit(st) || null, kwai: comTit(kw) || null, revisao: r.config?.revisao || { enviada: '2026-10-09' } });
     }
     if (b.acao === 'limpar_log') { r.log = []; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'config') { const t = b.config?.tt || {};
