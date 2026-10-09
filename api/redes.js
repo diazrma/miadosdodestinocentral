@@ -4,7 +4,8 @@
 // ser aprovada, o TikTok só deixa publicar como privado). Kwai não tem API de publicação: a Central separa o
 // post do dia e avisa a equipe no celular para postar com dois toques.
 //
-// GET  /api/redes (ou ?acao=diario)           -> agendado (Vercel Cron, 12h): posta no TikTok e separa o do Kwai
+// GET  /api/redes?horario=a|b|c               -> agendado (Vercel Cron, 12h/16h/19h): posta no TikTok (1 a 3 por dia) e,
+//                                                ao meio-dia, separa o do Kwai
 // GET  /tiktok/retorno?code=…                -> volta do login do TikTok (OAuth; rewrite para ?acao=tiktok_retorno)
 // GET  /midia/<arquivo>                       -> imagens públicas para o TikTok puxar (prefixo verificado) e o
 //                                                arquivo de verificação do TikTok (rewrite em vercel.json)
@@ -15,7 +16,7 @@
 //      { acao: 'publicar_agora', id }          publica já no TikTok (fora do horário)
 //      { acao: 'mover', id, posicao }          muda a ordem (topo | fim)
 //      { acao: 'midia', id }                   arquivos para baixar (Kwai)
-//      { acao: 'config', config }              { ativo, kwaiAviso }
+//      { acao: 'config', config }              { ativo, kwaiAviso, tiktokPorDia: 1 | 2 | 3 }
 //      { acao: 'tiktok_login' }                devolve a URL de login do TikTok
 //      { acao: 'tiktok_verificacao', nome, conteudo }  arquivo de verificação do prefixo de URL
 //      { acao: 'tiktok_sair' }
@@ -28,6 +29,9 @@ const IG = 'https://graph.instagram.com';
 const TT = 'https://open.tiktokapis.com';
 const REDIRECT = CENTRAL + '/tiktok/retorno'; // o TikTok não aceita ? no Redirect URI: rewrite em vercel.json
 const ESCOPOS = 'user.info.basic,video.publish,video.upload,video.list';
+// horários do TikTok (Vercel Cron em UTC): a = 12h, b = 16h, c = 19h de Brasília.
+// alvo = quantos posts do dia já devem ter saído depois daquele horário, conforme posts por dia (1, 2 ou 3)
+const ALVO = { 1: { a: 1 }, 2: { a: 1, c: 2 }, 3: { a: 1, b: 2, c: 3 } };
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------- dados
@@ -185,6 +189,24 @@ async function atualizar(r) {
   r.atualizado = new Date().toISOString();
   return { novos: novos.length, jaTinha, total: r.ordem.length };
 }
+// confere no TikTok o que aconteceu com os envios recentes (publicado, na caixa de entrada ou falhou)
+const STATUS_FINAL = ['PUBLISH_COMPLETE', 'SEND_TO_USER_INBOX', 'FAILED'];
+async function conferirStatus(r, c) {
+  if (!c) return 0;
+  const pend = r.ordem.map(id => r.itens[id]).filter(x => x?.tiktok?.publish_id && !STATUS_FINAL.includes(x.tiktok.status) && Date.now() - new Date(x.tiktok.quando) < 3 * 864e5).slice(0, 6);
+  for (const it of pend) {
+    try {
+      const d = await tt(c, '/v2/post/publish/status/fetch/', { publish_id: it.tiktok.publish_id });
+      it.tiktok.status = d.status;
+      if (d.status === 'FAILED') {
+        it.tiktok = { ...it.tiktok, estado: 'pular', erro: d.fail_reason || 'motivo não informado' };
+        registrar(r, 'tiktok', `O TikTok recusou depois do envio (${d.fail_reason || 'sem motivo'}): ${textos(it.legenda).titulo}. Ficou como "Pular"; volte para a fila quando quiser tentar de novo.`);
+      } else if (d.status === 'PUBLISH_COMPLETE') registrar(r, 'tiktok', 'Confirmado no TikTok: ' + textos(it.legenda).titulo);
+      else if (d.status === 'SEND_TO_USER_INBOX') registrar(r, 'tiktok', 'Chegou na caixa de entrada do TikTok (falta tocar em publicar): ' + textos(it.legenda).titulo);
+    } catch (e) { it.tiktok.statusErro = e.message; }
+  }
+  return pend.length;
+}
 const avisarKwai = () => avisarEquipe('📲 Kwai: o post de hoje está pronto', 'Abra a Central › TikTok e Kwai: baixe a imagem, copie a legenda e poste. Depois toque em "Postei".');
 async function avisarEquipe(titulo, texto) {
   const ap = (await dbGet('push_aparelhos')) || [];
@@ -192,14 +214,15 @@ async function avisarEquipe(titulo, texto) {
   for (const a of ap.slice(-10)) { try { await enviarPush({ titulo, texto, token: a.token }); ok++; } catch (e) {} }
   return ok;
 }
-async function diario(r, forcarId) {
+async function diario(r, forcarId, horario = 'a') {
   const out = {};
   // TikTok
   const c = await ttConta(r);
   const itT = forcarId ? r.itens[forcarId] : proximo(r, 'tiktok');
   if (!c) out.tiktok = 'não conectado';
   else if (!itT) out.tiktok = 'fila vazia';
-  else if (!forcarId && r.itens[r.ordem.find(id => r.itens[id]?.tiktok?.dia === hojeBR())]) out.tiktok = 'já postou hoje';
+  else if (!forcarId && !ALVO[r.config?.tiktokPorDia || 1][horario]) out.tiktok = 'horário desligado';
+  else if (!forcarId && r.ordem.filter(id => r.itens[id]?.tiktok?.dia === hojeBR()).length >= ALVO[r.config?.tiktokPorDia || 1][horario]) out.tiktok = 'já postou neste horário';
   else {
     try {
       const p = await publicarTikTok(c, itT);
@@ -209,8 +232,8 @@ async function diario(r, forcarId) {
       out.tiktok = 'ok';
     } catch (e) { registrar(r, 'tiktok', 'Falhou: ' + e.message); out.tiktok = 'erro: ' + e.message; }
   }
-  // Kwai: separa o do dia e avisa
-  if (!forcarId) {
+  // Kwai: separa o do dia e avisa (só no horário do meio-dia)
+  if (!forcarId && horario === 'a') {
     const ja = r.ordem.find(id => r.itens[id]?.kwai?.dia === hojeBR());
     const itK = ja ? r.itens[ja] : proximo(r, 'kwai');
     if (itK && !ja) {
@@ -256,13 +279,14 @@ module.exports = async (req, res) => {
       return res.redirect(302, '/?tiktok=ok');
     }
     // agendamento (Vercel Cron chama /api/redes sem parâmetros) ou ?acao=diario
-    if (req.method === 'GET' && (q.acao === 'diario' || !Object.keys(q).length)) {
+    if (req.method === 'GET' && (q.acao === 'diario' || q.horario || !Object.keys(q).length)) {
       const seg = process.env.CRON_SECRET;
       if (seg && req.headers.authorization !== 'Bearer ' + seg) return res.status(401).json({ erro: 'Não autorizado' });
       const r = await ler();
       if (r.config?.ativo === false) return res.json({ ok: 1, pausado: true });
       await atualizar(r).catch(e => registrar(r, 'fila', 'Não consegui atualizar: ' + e.message));
-      const out = await diario(r);
+      await conferirStatus(r, await ttConta(r).catch(() => null)).catch(() => {});
+      const out = await diario(r, null, ['a', 'b', 'c'].includes(q.horario) ? q.horario : 'a');
       await gravar(r);
       return res.json({ ok: 1, ...out });
     }
@@ -274,6 +298,7 @@ module.exports = async (req, res) => {
 
     if (b.acao === 'estado') {
       const c = await dbGet('tiktok_conta');
+      if (c && await conferirStatus(r, await ttConta(r).catch(() => null)).catch(() => 0)) await gravar(r);
       return res.json({ fila: r.ordem.map(id => r.itens[id]).filter(Boolean), config: r.config || {}, log: (r.log || []).slice().reverse(), atualizado: r.atualizado || null,
         tiktok: c ? { nome: c.nome || '', usuario: c.usuario || '', escopos: c.escopos || '', privacidades: c.privacidades || [] } : null,
         app: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET), verificacao: ((await dbGet('tiktok_verificacao')) || {}).nome || '' });
@@ -303,7 +328,7 @@ module.exports = async (req, res) => {
       const m = await midiaInstagram(b.id);
       return res.json({ fotos: (m.fotos || []).map((_, i) => `/midia/${b.id}_${i}.jpg`), video: m.video || '' });
     }
-    if (b.acao === 'config') { r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false }; await gravar(r); return res.json({ ok: 1 }); }
+    if (b.acao === 'config') { r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false, tiktokPorDia: [1, 2, 3].includes(+b.config?.tiktokPorDia) ? +b.config.tiktokPorDia : 1 }; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'tiktok_login') {
       if (!process.env.TIKTOK_CLIENT_KEY) return res.status(400).json({ erro: 'Falta configurar TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET na Vercel' });
       const state = crypto.randomBytes(16).toString('hex');

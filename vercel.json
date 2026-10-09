@@ -22,8 +22,16 @@
       "schedule": "0 12 * * *"
     },
     {
-      "path": "/api/redes",
+      "path": "/api/redes?horario=a",
       "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/redes?horario=b",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/redes?horario=c",
+      "schedule": "0 22 * * *"
     }
   ],
   "rewrites": [
