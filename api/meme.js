@@ -3,8 +3,9 @@
 //   { acao: 'gerar', cena, personagem, formato }   -> { img: dataURL, modelo, prompt }
 //   { acao: 'ideias', personagem }                 -> { ideias: [{ formato, cena, topo, baixo }] }
 //   { acao: 'status' }                             -> { chave: bool }  (se a chave grátis do Pollinations está configurada)
-// Com POLLINATIONS_KEY (grátis em enter.pollinations.ai): FLUX Kontext usando a foto oficial do personagem como referência,
-// ou FLUX 1.1 Pro sem personagem. Sem a chave: modelo público mais simples, sem referência.
+// Ordem: 1) Cloudflare Workers AI, FLUX.2 Klein (grátis, ~59 imagens/dia), com a foto oficial do personagem como referência
+//           (CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN); 2) Pollinations com chave (POLLINATIONS_KEY, precisa de saldo);
+//        3) Pollinations público (sem chave, cota pequena).
 const { auth } = require('../lib/db');
 const { perguntar } = require('../lib/groq');
 
@@ -21,6 +22,7 @@ const PERSONAGENS = {
   baek: 'Sr. Baek, a Korean man in his 50s with short black hair, serious face, beige suit',
 };
 const FORMATOS = { vertical: '1080x1350', quadrado: '1080x1080', stories: '1080x1920' };
+const TAM_CF = { vertical: [1024, 1280], quadrado: [1024, 1024], stories: [864, 1536] };
 const ESTILO = 'cinematic K-drama still, warm moody lighting, shallow depth of field, photorealistic, high detail, no text, no letters, no watermark';
 
 async function promptEmIngles(cena, p) {
@@ -31,6 +33,24 @@ async function promptEmIngles(cena, p) {
     ], { temperatura: 0.6 });
     return texto.replace(/^["'\s]+|["'\s]+$/g, '');
   } catch (e) { return `${p ? PERSONAGENS[p] + ', ' : ''}${cena}`; }
+}
+
+async function gerarCloudflare(prompt, p, formato) {
+  const conta = process.env.CLOUDFLARE_ACCOUNT_ID, token = process.env.CLOUDFLARE_API_TOKEN;
+  const [w, h] = TAM_CF[formato] || TAM_CF.vertical, f = new FormData();
+  f.append('prompt', (p ? 'Use the character from the reference image (keep the same face, colors and markings). ' : '') + `${prompt}. ${ESTILO}`);
+  f.append('width', String(w)); f.append('height', String(h));
+  if (p) {
+    const ref = await fetch(`${CENTRAL}/ref/${p}.jpg`);
+    if (ref.ok) f.append('input_image_0', new Blob([await ref.arrayBuffer()], { type: 'image/jpeg' }), 'ref.jpg');
+  }
+  const r = await fetch(`https://api.cloudflare.com/client/v4/accounts/${conta}/ai/run/@cf/black-forest-labs/flux-2-klein-4b`, { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: f });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.success) {
+    const m = JSON.stringify(j.errors || j).slice(0, 200);
+    throw new Error(/neuron|daily|limit/i.test(m) ? 'Acabou a cota grátis de imagens de hoje (volta às 21h).' : 'Cloudflare: ' + m);
+  }
+  return { img: 'data:image/jpeg;base64,' + j.result.image, modelo: 'FLUX.2 Klein (Cloudflare)' + (p ? ' com a foto do personagem' : '') };
 }
 
 async function gerarComChave(prompt, p, size) {
@@ -62,7 +82,7 @@ module.exports = async (req, res) => {
     if (!a) return res.status(401).json({ erro: 'Faça login' });
     if (!a.menus.includes('publicar') && !a.menus.includes('posts')) return res.status(403).json({ erro: 'Sem permissão' });
     const b = req.body || {};
-    if (b.acao === 'status') return res.json({ chave: !!process.env.POLLINATIONS_KEY });
+    if (b.acao === 'status') return res.json({ chave: !!(process.env.CLOUDFLARE_API_TOKEN || process.env.POLLINATIONS_KEY), modelo: process.env.CLOUDFLARE_API_TOKEN ? 'FLUX.2 Klein (Cloudflare)' : process.env.POLLINATIONS_KEY ? 'Pollinations' : 'público' });
     const p = PERSONAGENS[b.personagem] ? b.personagem : '';
     if (b.acao === 'ideias') {
       const { texto } = await perguntar([
@@ -82,11 +102,15 @@ module.exports = async (req, res) => {
       if (/milka|quinta gata|tricolor/i.test(cena)) return res.status(400).json({ erro: 'A quinta gata ainda é segredo 🤫' });
       const size = FORMATOS[b.formato] || FORMATOS.vertical;
       const prompt = await promptEmIngles(cena, p);
-      let out;
-      if (process.env.POLLINATIONS_KEY) {
-        try { out = await gerarComChave(prompt, p, size); }
-        catch (e) { out = await gerarPublico(`${p ? PERSONAGENS[p] + ', ' : ''}${prompt}`, size); out.aviso = e.message + ' · usei o gerador público'; }
-      } else out = await gerarPublico(`${p ? PERSONAGENS[p] + ', ' : ''}${prompt}`, size);
+      // tenta cada gerador em ordem e avisa quando precisou cair para um mais simples
+      const tentativas = [];
+      if (process.env.CLOUDFLARE_API_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID) tentativas.push(() => gerarCloudflare(prompt, p, b.formato));
+      if (process.env.POLLINATIONS_KEY) tentativas.push(() => gerarComChave(prompt, p, size));
+      tentativas.push(() => gerarPublico(`${p ? PERSONAGENS[p] + ', ' : ''}${prompt}`, size));
+      let out, avisos = [];
+      for (const t of tentativas) { try { out = await t(); break; } catch (e) { avisos.push(e.message); } }
+      if (!out) throw new Error(avisos.join(' · '));
+      if (avisos.length) out.aviso = avisos[0] + ' Usei um gerador mais simples.';
       return res.json({ ...out, prompt });
     }
     res.status(400).json({ erro: 'Ação inválida' });

@@ -426,12 +426,12 @@ const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('p
 const MM_PERS=[['','Sem personagem'],['naru','Naru'],['zelda','Zelda'],['merlin','Merlin'],['spark','Spark'],['yoonari','Yoo Nari'],['baek','Sr. Baek']];
 const MM_FMT={ninguem:['😐','Ninguém:'],classico:['🔠','Clássico'],comparacao:['⚖️','Comparação'],pov:['👀','POV']};
 let MM={enviadas:[],fmt:'ninguem',pers:'naru',cena:'',cena2:'',topo:'',baixo:'',tam:'vertical',imgs:[],imgs2:[],sel:0,sel2:0,busy:'',ideias:[],chave:null,erro:''};
-async function mmStatus(){try{MM.chave=(await api('/api/meme',{acao:'status'})).chave}catch(e){MM.chave=false}if(tab=='memes')render()}
+async function mmStatus(){try{const d=await api('/api/meme',{acao:'status'});MM.chave=d.chave;MM.modelo=d.modelo||''}catch(e){MM.chave=false}if(tab=='memes')render()}
 function memes(){if(MM.chave===null)mmStatus();const c=MM.fmt=='comparacao',f=MM_FMT;
  const lbl={ninguem:['Depois de “Ninguém:”','Ex.: A Naru às 3h da manhã:'],classico:['Texto de cima','Ex.: QUANDO O SR. BAEK DIZ'],comparacao:['Rótulo do 1º quadro','Ex.: Todo dorama:'],pov:['Texto do POV','Ex.: você é o gato e viu TUDO']}[MM.fmt];
  const lbl2={classico:['Texto de baixo','Ex.: QUE NÃO É NADA'],comparacao:['Rótulo do 2º quadro','Ex.: Miados do Destino:']}[MM.fmt];
  return `<div class="ax-top"><div><h2>🎭 Estúdio de memes</h2><p>Gere a imagem com IA grátis, escreva o texto e baixe o meme pronto com a marca.</p></div>
-  <span class="ax-st${MM.chave?'':' suj'}"><i></i>${MM.chave?'IA de imagem: FLUX (com a foto do personagem)':MM.chave===false?'IA de imagem: modo público (mais simples)':'Verificando a IA…'}</span></div>
+  <span class="ax-st${MM.chave?'':' suj'}"><i></i>${MM.chave?'IA de imagem: '+esc2(MM.modelo)+(MM.pers?' · com a foto do personagem':''):MM.chave===false?'IA de imagem: modo público (mais simples)':'Verificando a IA…'}</span></div>
  <div class="mm"><div>
   <div class="ax-sec"><h3>1. Formato</h3><div class="mm-fmt">${Object.entries(f).map(([k,[i,l]])=>`<button class="${MM.fmt==k?'on':''}" onclick="mmSalva();MM.fmt='${k}';render()"><i>${i}</i>${l}</button>`).join('')}</div>
    <div class="ax-2" style="margin-top:12px"><label class="ax-f"><span>Personagem</span><select onchange="MM.pers=this.value;mmIdeiasLimpa()">${MM_PERS.map(([k,l])=>`<option value="${k}" ${MM.pers==k?'selected':''}>${l}</option>`).join('')}</select></label>
