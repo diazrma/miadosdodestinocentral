@@ -78,6 +78,11 @@ async function midiaInstagram(id) {
   return { tipo: 'fotos', fotos: [m.media_url] };
 }
 
+async function ajustarFoto(buf) {
+  const sharp = require('sharp');
+  return sharp(buf).rotate().resize({ width: 1080, height: 1920, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toBuffer();
+}
+
 // ---------------------------------------------------------------- TikTok
 async function ttConta(r) {
   const c = await dbGet('tiktok_conta');
@@ -262,10 +267,11 @@ module.exports = async (req, res) => {
       const md = await midiaInstagram(m[1]);
       const url = (md.fotos || [])[+m[2]] || md.capa;
       if (!url) return res.status(404).end('sem foto');
-      const img = await fetch(url);
-      res.setHeader('Content-Type', img.headers.get('content-type') || 'image/jpeg');
+      // o TikTok recusa fotos acima de 1080p (picture_size_check_failed): reduz para caber em 1080 x 1920
+      const img = Buffer.from(await (await fetch(url)).arrayBuffer());
+      res.setHeader('Content-Type', 'image/jpeg');
       res.setHeader('Cache-Control', 'public, max-age=3600');
-      return res.end(Buffer.from(await img.arrayBuffer()));
+      return res.end(await ajustarFoto(img));
     }
     if (req.method === 'GET' && q.acao === 'tiktok_retorno') {
       const est = await dbGet('tiktok_estado');
@@ -328,6 +334,7 @@ module.exports = async (req, res) => {
       const m = await midiaInstagram(b.id);
       return res.json({ fotos: (m.fotos || []).map((_, i) => `/midia/${b.id}_${i}.jpg`), video: m.video || '' });
     }
+    if (b.acao === 'limpar_log') { r.log = []; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'config') { r.config = { ativo: b.config?.ativo !== false, kwaiAviso: b.config?.kwaiAviso !== false, tiktokPorDia: [1, 2, 3].includes(+b.config?.tiktokPorDia) ? +b.config.tiktokPorDia : 1 }; await gravar(r); return res.json({ ok: 1 }); }
     if (b.acao === 'tiktok_login') {
       if (!process.env.TIKTOK_CLIENT_KEY) return res.status(400).json({ erro: 'Falta configurar TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET na Vercel' });
@@ -349,3 +356,4 @@ module.exports = async (req, res) => {
 // exportado para testes
 module.exports.parecido = parecido;
 module.exports.textos = textos;
+module.exports.ajustarFoto = ajustarFoto;

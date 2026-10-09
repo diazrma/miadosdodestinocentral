@@ -43,7 +43,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:6px 8px;b
 function aviso(msg,{erro,texto,tempo}={}){let box=document.getElementById('avisos');if(!box){box=document.createElement('div');box.id='avisos';document.body.appendChild(box)}
  const d=document.createElement('div');d.className='aviso'+(erro?' err':'');d.textContent=String(msg??'');const x=document.createElement('button');x.textContent='×';x.onclick=()=>d.remove();d.appendChild(x);
  if(texto!=null){const t=document.createElement('textarea');t.value=texto;t.readOnly=true;d.appendChild(t);setTimeout(()=>t.select(),50)}
- box.appendChild(d);if(texto==null)setTimeout(()=>d.remove(),tempo||(erro?8000:4500));}
+ box.appendChild(d);while(box.children.length>3)box.firstChild.remove();if(texto==null)setTimeout(()=>d.remove(),tempo||(erro?7000:4000));}
 window.alert=m=>aviso(m,{erro:/n[ãa]o |erro|falh|inv[áa]lid|sem permiss|confira/i.test(String(m))});
 {const p0=window.prompt.bind(window);window.prompt=(m,v)=>{if(v===undefined)return p0(m);aviso(m,{texto:String(v)});return null}}
 
@@ -492,7 +492,7 @@ function redes(){if(!RD2){rdCarrega();return '<div class="ax-sec"><div class="ax
   <div class="rd-lista">${lista.slice(0,80).map((it,i)=>`<div class="rd-it"><a href="${esc2(it.link)}" target="_blank" class="rd-th">${it.tipo=='foto'||it.tipo=='carrossel'?`<img src="/midia/${it.id}_0.jpg" loading="lazy" alt="">`:'<span>🎬</span>'}</a>
    <div class="rd-tx"><small>${({foto:'Foto',carrossel:'Carrossel',reels:'Reels',video:'Vídeo'})[it.tipo]||''} · ${new Date(it.data).toLocaleDateString('pt-BR')} · ❤️ ${it.engaj}</small><p>${esc2((it.legenda||'(sem legenda)').slice(0,110))}</p></div>
    <div class="rd-sel"><label>TikTok ${sel(it,'tiktok')}</label><label>Kwai ${sel(it,'kwai')}</label><div><button class="ax-ib" title="Para o topo da fila" onclick="rdAcao({acao:'mover',id:'${it.id}',posicao:'topo'})">⤒</button><button class="ax-ib" title="Para o fim da fila" onclick="rdAcao({acao:'mover',id:'${it.id}',posicao:'fim'})">⤓</button></div></div></div>`).join('')||'<div class="ax-empty">Nada aqui.</div>'}</div></div>`:''}
- ${(RD2.log||[]).length?`<div class="ax-sec"><h3>Histórico</h3><div class="ax-hist">${RD2.log.slice(0,15).map(l=>`<div class="ax-h"><div class="ic">${l.rede=='tiktok'?'🎵':l.rede=='kwai'?'🎬':'📋'}</div><div><div>${esc2(l.texto)}</div><small>${new Date(l.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</small></div></div>`).join('')}</div></div>`:''}
+ ${(RD2.log||[]).length?`<div class="ax-sec"><h3 style="display:flex;justify-content:space-between;align-items:center">Histórico <button class="ax-ib" style="width:auto;padding:4px 10px;font-size:12px" onclick="rdAcao({acao:'limpar_log'})">Limpar</button></h3><div class="ax-hist">${RD2.log.slice(0,15).map(l=>`<div class="ax-h"><div class="ic">${l.rede=='tiktok'?'🎵':l.rede=='kwai'?'🎬':'📋'}</div><div><div>${esc2(l.texto)}</div><small>${new Date(l.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</small></div></div>`).join('')}</div></div>`:''}
  <div class="ax-sec"><h3>🎬 Kwai</h3><p class="d">O Kwai não deixa publicar por automação: aqui fica o post de hoje pronto para postar.</p>
    <div class="rd-n"><span>⏳ ${ck.fila} na fila</span><span>✅ ${ck.postado} postados</span><span>☑️ ${ck.ja_tinha} já estavam lá</span></div>
    <div class="mut" style="font-size:12px;margin:10px 0 4px">POST DE HOJE</div>${card(hojeK)}

@@ -1,1 +1,1 @@
-{"name":"miados-central","private":true,"dependencies":{"@vercel/blob":"2.8.0"}}
+{"name":"miados-central","private":true,"dependencies":{"@vercel/blob":"2.8.0","sharp":"0.33.5"}}
