@@ -55,7 +55,7 @@ const PADRAO = {
     ],
     carta: '', agradecimentos: ''
   },
-  site: { apk: '' } // link para baixar o app (botão no site)
+  site: { apk: '', grupo: '', teste: '' } // apk = baixar o app; grupo = Grupo do Google dos testadores; teste = link de participação do teste fechado
 };
 const ELENCO_IDS = ['yoonari', 'baek', 'naru', 'spark', 'zelda', 'merlin', 'milka'];
 const GATOS = ['naru', 'merlin', 'zelda', 'spark', 'milka'];
@@ -115,6 +115,16 @@ module.exports = async (req, res) => {
 
     const b = req.body || {};
     // o app registra o aparelho (público): token do Firebase + apelido para escolher no painel
+    // página /testar do site: a pessoa deixa nome e Gmail para entrar no teste fechado da Play Store
+    if (b.acao === 'testador') {
+      const email = String(b.email || '').trim().toLowerCase(), nome = String(b.nome || '').trim().slice(0, 60);
+      if (!/^[^\s@]+@(gmail\.com|googlemail\.com|[^\s@]+\.[a-z]{2,})$/.test(email) || email.length > 120) return res.status(400).json({ erro: 'Confira o e-mail' });
+      if (String(b.site || '')) return res.json({ ok: 1 }); // campo-armadilha para robôs
+      const lista = (await dbGet('testadores') || []).filter(x => x.email !== email);
+      lista.push({ email, nome, quando: new Date().toISOString() });
+      await dbSet('testadores', lista.slice(-1000));
+      return res.json({ ok: 1, total: lista.length });
+    }
     if (b.acao === 'registrar') {
       const token = String(b.token || ''), nome = String(b.nome || '').trim().slice(0, 40) || 'Aparelho sem nome';
       if (token.length < 100 || token.length > 400) return res.status(400).json({ erro: 'Token inválido' });
@@ -142,7 +152,7 @@ module.exports = async (req, res) => {
         recursos: { sussurro: c.recursos?.sussurro !== false, quiz: c.recursos?.quiz !== false, papeis: c.recursos?.papeis !== false, sussurroIA: c.recursos?.sussurroIA !== false, sussurroAviso: c.recursos?.sussurroAviso !== false },
         creditos: { pessoas: (c.creditos?.pessoas || PADRAO.creditos.pessoas).slice(0, 8).map(p => ({ usuario: txt(p.usuario, 60), busca: txt(p.busca, 30), fotoPropria: https(p.fotoPropria), nome: txt(p.nome, 60), cargo: txt(p.cargo, 60), arroba: txt(p.arroba, 40), texto: txt(p.texto, 500) })).filter(p => p.nome),
           carta: txt(c.creditos?.carta, 2000), agradecimentos: txt(c.creditos?.agradecimentos, 600) },
-        site: { apk: https(c.site?.apk) },
+        site: { apk: https(c.site?.apk), grupo: https(c.site?.grupo), teste: https(c.site?.teste) },
         atualizado: new Date().toISOString(), por: a.u.nome
       };
       if (JSON.stringify(limpo).length > 200000) return res.status(400).json({ erro: 'Conteúdo grande demais' });
@@ -170,6 +180,8 @@ module.exports = async (req, res) => {
       return res.json({ ok: 1, id });
     }
 
+    if (b.acao === 'testadores') return res.json({ lista: (await dbGet('testadores') || []).slice().reverse() });
+    if (b.acao === 'remover_testador') { await dbSet('testadores', (await dbGet('testadores') || []).filter(x => x.email !== b.email)); return res.json({ ok: 1 }); }
     if (b.acao === 'aparelhos') return res.json({ aparelhos: (await dbGet('push_aparelhos') || []).map(({ token, nome, modelo, visto }) => ({ token, nome, modelo, visto })).reverse() });
     if (b.acao === 'remover_aparelho') { await dbSet('push_aparelhos', (await dbGet('push_aparelhos') || []).filter(x => x.token !== b.aparelho)); return res.json({ ok: 1 }); }
     if (b.acao === 'historico') return res.json({ log: (await dbGet('push_log') || []).slice().reverse() });

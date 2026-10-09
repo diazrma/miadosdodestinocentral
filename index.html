@@ -420,6 +420,27 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 </style>`);
 
 
+
+// ---------- 🤝 Testadores da Play Store (inscritos pela página /testar do site)
+let TST=null;
+async function apTstCarrega(){try{TST=(await api('/api/conteudo',{acao:'testadores'})).lista||[]}catch(e){TST={erro:e.message}}if(APT=='testadores')render()}
+function apTstCopia(){const t=(TST||[]).map(x=>x.email).join(', ');navigator.clipboard.writeText(t).then(()=>alert(TST.length+' e-mails copiados. Cole em Play Console › Teste fechado › Testadores › Lista de e-mails.'),()=>prompt('Copie os e-mails:',t))}
+async function apTstRm(email){if(!(await confirma('Remover '+email+' da lista?','Remover')))return;await api('/api/conteudo',{acao:'remover_testador',email});apTstCarrega()}
+async function apTstLinks(){const g=($('#tst-g').value||'').trim(),t=($('#tst-t').value||'').trim();AP.site=AP.site||{};AP.site.grupo=g;AP.site.teste=t;const b=$('#tst-sv');b.disabled=true;b.textContent='Salvando…';try{await apSalva()}catch(e){alert(e.message)}}
+function apTestadores(){if(TST===null){apTstCarrega();return '<div class="ax-sec"><div class="ax-empty">Carregando os testadores…</div></div>'}
+ if(TST.erro)return `<div class="ax-sec"><div class="ax-empty">${esc2(TST.erro)}</div></div>`;
+ const n=TST.length,falta=Math.max(0,12-n),pct=Math.min(100,Math.round(n/15*100)),site=AP.site||{};
+ return `<div class="ax-sec"><h3>Testadores da Play Store</h3><p class="d">A Play Store só libera o app depois de <b>12 testadores</b> inscritos por <b>14 dias seguidos</b> no teste fechado. As pessoas se inscrevem na página <a href="https://miados-do-destino.vercel.app/testar/" target="_blank">miados-do-destino.vercel.app/testar</a> (divulgue esse link).</p>
+  <div class="tst-meta"><b>${n}</b> inscrito${n==1?'':'s'} · ${falta?`faltam <b>${falta}</b> para 12 (bom ter uns 15)`:'✅ já passou de 12'}<div class="tst-barra"><i style="width:${pct}%"></i></div></div>
+  <div class="r sp"><button class="pr" onclick="apTstCopia()" ${n?'':'disabled'}>📋 Copiar todos os e-mails</button><button onclick="TST=null;render()">🔄 Atualizar</button></div>
+  <p class="mut" style="font-size:13px">Depois de colar na Play Console, clique em Salvar lá. Quem já está na lista pode abrir o link do teste e instalar.</p></div>
+ <div class="ax-sec"><h3>Links que aparecem na página /testar</h3><p class="d">Copie da Play Console. Sem eles, a página só recolhe os e-mails.</p>
+  <label class="ax-f"><span>Link de participação do teste fechado</span><input id="tst-t" value="${esc2(site.teste)}" placeholder="https://play.google.com/apps/testing/com.canteiro.miadosdodestino"></label>
+  <label class="ax-f"><span>Grupo do Google dos testadores (opcional)</span><input id="tst-g" value="${esc2(site.grupo)}" placeholder="https://groups.google.com/g/…"></label>
+  <button class="pr" id="tst-sv" onclick="apTstLinks()">Salvar links</button></div>
+ <div class="ax-sec"><h3>Inscritos</h3>${n?`<table class="tst-t"><tr><th>Nome</th><th>E-mail</th><th>Quando</th><th></th></tr>${TST.map(x=>`<tr><td>${esc2(x.nome)||'—'}</td><td>${esc2(x.email)}</td><td>${new Date(x.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td><button class="ax-ib x" onclick="apTstRm('${esc2(x.email)}')">✕</button></td></tr>`).join('')}</table>`:'<div class="ax-empty">Ninguém se inscreveu ainda. Divulgue a página /testar no Instagram.</div>'}</div>`}
+document.head.insertAdjacentHTML('beforeend',`<style>.tst-meta{font-size:15px;margin:10px 0 4px}.tst-meta b{color:var(--gd);font-size:20px}.tst-barra{height:10px;border-radius:9px;background:var(--bd);overflow:hidden;margin-top:8px}.tst-barra i{display:block;height:100%;background:linear-gradient(90deg,#b8892c,#f3d98f)}.tst-t td{font-size:14px}</style>`);
+
 // ---------- 🎭 Estúdio de memes: imagem por IA grátis (Pollinations) + texto e marca montados aqui
 // o estúdio aparece para quem publica (não é um menu separado nos perfis de acesso)
 const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('posts')):ME.menus.includes(k);
@@ -608,13 +629,13 @@ const axF=(id,rot,v,ex='')=>`<label class="ax-f"><span>${rot}</span><input id="$
 const axFT=(id,rot,v,ex='')=>`<label class="ax-f"><span>${rot}</span><textarea id="${id}" oninput="apMud()" ${ex}>${esc2(v)}</textarea></label>`;
 function appPainel(){
  if(!AP){if(!APE)apCarrega();return APE?empty('Não foi possível carregar o conteúdo do app: '+esc(APE),'<button onclick="APE=\'\';apCarrega()">Tentar de novo</button>'):empty('Carregando o conteúdo do app…')}
- const tabs=[['gazeta','📰 Gazeta'],['videos','🎭 Elenco e vídeos'],['temporada','🎬 Temporada'],['papeis','🖼️ Papéis'],['sussurros','🔮 Sussurros'],['enigma','🧩 Enigma'],['post','📸 Post do dia'],['creditos','🎞️ Créditos'],['recursos','⚙️ Recursos'],['notif','🔔 Notificações'],['aparelhos','🧪 Aparelhos']];
+ const tabs=[['gazeta','📰 Gazeta'],['videos','🎭 Elenco e vídeos'],['temporada','🎬 Temporada'],['papeis','🖼️ Papéis'],['sussurros','🔮 Sussurros'],['enigma','🧩 Enigma'],['post','📸 Post do dia'],['creditos','🎞️ Créditos'],['recursos','⚙️ Recursos'],['notif','🔔 Notificações'],['testadores','🤝 Testadores'],['aparelhos','🧪 Aparelhos']];
  const quando=AP.atualizado?new Date(AP.atualizado).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+(AP.por?' por '+esc(AP.por):''):'ainda sem alterações';
- const editavel=!['notif','aparelhos'].includes(APT);if(!S.team.length&&APT=='creditos')refresh().then(render).catch(()=>{});
+ const editavel=!['notif','aparelhos','testadores'].includes(APT);if(!S.team.length&&APT=='creditos')refresh().then(render).catch(()=>{});
  return `<div class="ax-top"><div><h2>App Miados do Destino</h2><p>Gerencie o que aparece no app e envie notificações.</p></div>
   <div class="ax-topd"><span class="ax-st${APSUJO?' suj':''}" id="ax-st"><i></i>${APSUJO?'Alterações não salvas':'No ar · '+quando}</span><button class="ax-pvbtn" id="ax-pvbtn" onclick="apPrevMobile()">📱 Ver no celular</button></div></div>
  <div class="ax-tabs">${tabs.map(([k,l])=>{const i=l.indexOf(' ');return `<button class="${APT==k?'on':''}" onclick="apSalvaTela();APT='${k}';render();document.querySelector('.ax-tabs').scrollIntoView({block:'nearest'})"><i>${l.slice(0,i)}</i><span>${l.slice(i+1)}</span></button>`}).join('')}</div>
- <div class="ax"><div>${({gazeta:apGazeta,videos:apVideos,temporada:apTemporada,papeis:apPapeis,sussurros:apSussurros,enigma:apEnigma,post:apPost,creditos:apCreditos,recursos:apRecursos,notif:apNotif,aparelhos:apAparelhos})[APT]()}
+ <div class="ax"><div>${({gazeta:apGazeta,videos:apVideos,temporada:apTemporada,papeis:apPapeis,sussurros:apSussurros,enigma:apEnigma,post:apPost,creditos:apCreditos,recursos:apRecursos,notif:apNotif,aparelhos:apAparelhos,testadores:apTestadores})[APT]()}
   ${editavel?`<div class="ax-bar" id="ax-bar" style="display:${APSUJO?'flex':'none'}"><span>Você tem alterações não salvas.</span><div class="bt"><button onclick="apDescarta()">Descartar</button><button class="pr" id="ap-sv" onclick="apSalva()">Salvar e publicar no app</button></div></div>`:''}</div>
   <div class="ax-pv"><div class="lb">${APT=='notif'?'Prévia da notificação':'Prévia no app'}</div><div id="ax-prev">${apPreviaHtml()}</div></div></div>`}
 function apGazeta(){const g=AP.gazeta,m=g.manchete;return `
