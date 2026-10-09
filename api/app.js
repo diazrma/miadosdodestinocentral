@@ -1,5 +1,7 @@
 const { randomUUID } = require('crypto');
 const { dbGet, dbSet, hash, auth, MENUS } = require('../lib/db');
+// quem posta por padrão: se ninguém foi escolhido no Painel, é a Ana Paula (criadora de conteúdo do Instagram)
+const padraoAna = us => (us.find(u => /^ana\b/i.test(String(u.nome || '').trim())) || {}).id || '';
 const pub = u => { const { hash: _h, ...r } = u; return r; };
 module.exports = async (req, res) => {
   try {
@@ -7,12 +9,14 @@ module.exports = async (req, res) => {
     if (!a) return res.status(401).json({ erro: 'Faça login' });
     const st = await dbGet('state') || {}, us = await dbGet('users') || [], b = req.body || {};
     const can = m => a.menus.includes(m), isAdmin = !!a.role?.admin, roleOf = id => (st.roles || []).find(r => r.id === id);
-    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || '' } });
+    // uma vez só: a Ana Paula passa a ser quem posta por padrão (pedido da direção, 09/10/2026); depois vale o que for escolhido no Painel
+    if (req.method === 'GET' && !st.padraoAna && padraoAna(us)) { st.padrao = padraoAna(us); st.padraoAna = 1; await dbSet('state', st); }
+    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || padraoAna(us) } });
     const no = (c, m) => res.status(c).json({ erro: m });
     if (b.acao === 'salvar_estado') {
       if (!['posts', 'dados', 'relatorio', 'equipe'].some(can)) return no(403, 'Sem permissão');
       const e = b.estado || {};
-      Object.assign(st, { resp: e.resp || {}, notes: e.notes || {}, seg: e.seg || {}, last: e.last || '', padrao: String(e.padrao || '') });
+      Object.assign(st, { resp: e.resp || {}, notes: e.notes || {}, seg: e.seg || {}, last: e.last || '', padrao: String(e.padrao || st.padrao || '') });
       await dbSet('state', st); return res.json({ ok: 1 });
     }
     if (b.acao === 'salvar_padrao') {
