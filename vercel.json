@@ -1,1 +1,1 @@
-{"functions":{"api/sync.js":{"maxDuration":60},"api/publicar.js":{"maxDuration":60},"api/sussurro.js":{"maxDuration":60}},"crons":[{"path":"/api/sussurro","schedule":"0 12 * * *"}]}
+{"functions":{"api/sync.js":{"maxDuration":60},"api/publicar.js":{"maxDuration":60},"api/sussurro.js":{"maxDuration":60},"api/meme.js":{"maxDuration":60}},"crons":[{"path":"/api/sussurro","schedule":"0 12 * * *"}]}

@@ -2,7 +2,7 @@
 <html lang="pt-BR"><head><link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#17130f"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Miados do Destino · Central do Instagram</title>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Anton&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#f6efe2;--cd:#fffaf0;--bd:#e0d2b8;--fg:#2a2118;--mut:#7d6d55;--gd:#c98f0a;--ok:#2f8a4f;--no:#b9452f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17130f;--cd:#231c15;--bd:#3a2e20;--fg:#f3e8d6;--mut:#a8977c;--gd:#f5c84b;--ok:#6fcf8f;--no:#ef8a72}}
@@ -166,7 +166,7 @@ function render(){nav();$('#mes').value=mes;['painel','equipe','dados','posts','
  const a=document.activeElement;if(tab=='feed'&&a&&a.id=='fp')return;$('#s-'+tab).innerHTML=f();if(tab=='posts')pl();if(tab=='dados')dtab()}
 $('#mes').onchange=e=>{mes=e.target.value||mes;fbTxt='';fbBusy=false;fbN++;render()};
 </script><div id="lg" style="position:fixed;inset:0;background:var(--bg);z-index:50;display:none;align-items:center;justify-content:center;padding:18px"></div><script>let ME=null,ROLES=[],ED=null,FOTO='',RD=null;
-const MN={painel:'📊 Painel',equipe:'🐾 Equipe',dados:'📝 Dados',posts:'🖼️ Posts',publicar:'📤 Publicar',feed:'💌 Feedback',relatorio:'📄 Relatório',app:'📱 App',acessos:'🔐 Acessos'};
+const MN={painel:'📊 Painel',equipe:'🐾 Equipe',dados:'📝 Dados',posts:'🖼️ Posts',publicar:'📤 Publicar',memes:'🎭 Memes',feed:'💌 Feedback',relatorio:'📄 Relatório',app:'📱 App',acessos:'🔐 Acessos'};
 const PH='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" rx="36" fill="#8884"/><text x="36" y="46" font-size="30" text-anchor="middle">📷</text></svg>');
 document.head.insertAdjacentHTML('beforeend','<style>.ini{display:flex;align-items:center;justify-content:center;background:var(--gd);color:#17130f;font-weight:700;border-radius:50%}.me{display:flex;align-items:center;gap:8px;margin-left:8px}.me .av{width:34px;height:34px}.dn{color:var(--no)}</style>');
 async function api(url,body){const r=await fetch(url,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('mtk')||'')},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(r.status==401&&url!='/api/auth'){logout();throw new Error('Sessão expirada')}if(!r.ok)throw new Error(j.erro||('Erro '+r.status));return j}
@@ -189,8 +189,8 @@ async function sync(m){const b=$('#sy');if(b)b.textContent='⏳ Sincronizando…
 async function syncInicial(){let ok=false;try{const l=JSON.parse(localStorage.getItem('msync')||'null');if(l&&l.d&&l.d.posts){aplicaSync(l.d,new Date(l.t).toLocaleString('pt-BR'));ok=true;render()}}catch(e){}
  if(!ok)try{const d=await api('/api/sync?cache=1');aplicaSync(d,d.cacheEm?new Date(d.cacheEm).toLocaleString('pt-BR'):'');guardaSync(d);render()}catch(e){}
  sync()}
-function nav(){$('#nv').innerHTML=Object.keys(MN).filter(k=>ME.menus.includes(k)).map(k=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render()">${MN[k]}</button>`).join('')+`<span class="me">${av(ME)}<span>${esc(ME.nome.split(' ')[0])}</span><button onclick="logout()">Sair</button></span>`}
-function render(){if(!ME)return;const M=Object.keys(MN).filter(k=>ME.menus.includes(k));if(!M.includes(tab))tab=M[0];nav();$('#mes').value=mes;Object.keys(MN).forEach(k=>{let e=$('#s-'+k);if(!e){e=document.createElement('section');e.id='s-'+k;$('main').append(e)}e.classList.toggle('on',k==tab)});const a=document.activeElement;if(a&&(tab=='feed'&&a.id=='fp'||tab=='publicar'&&a.id=='pleg'))return;$('#s-'+tab).innerHTML=({painel,equipe,dados,posts,feed,relatorio,acessos,publicar,app:appPainel})[tab]();if(tab=='publicar')pInit();if(tab=='posts')pl();if(tab=='dados')dtab();}
+function nav(){$('#nv').innerHTML=Object.keys(MN).filter(podeVer).map(k=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render()">${MN[k]}</button>`).join('')+`<span class="me">${av(ME)}<span>${esc(ME.nome.split(' ')[0])}</span><button onclick="logout()">Sair</button></span>`}
+function render(){if(!ME)return;const M=Object.keys(MN).filter(podeVer);if(!M.includes(tab))tab=M[0];nav();$('#mes').value=mes;Object.keys(MN).forEach(k=>{let e=$('#s-'+k);if(!e){e=document.createElement('section');e.id='s-'+k;$('main').append(e)}e.classList.toggle('on',k==tab)});const a=document.activeElement;if(a&&(tab=='feed'&&a.id=='fp'||tab=='publicar'&&a.id=='pleg'))return;$('#s-'+tab).innerHTML=({painel,equipe,dados,posts,feed,relatorio,acessos,publicar,memes,app:appPainel})[tab]();if(tab=='publicar')pInit();if(tab=='memes')mmDesenha();if(tab=='posts')pl();if(tab=='dados')dtab();}
 let DF={q:'',t:'',r:'',o:'data',d:-1,all:false};
 const DO=[['data','Data'],['vis','Visualizações'],['alc','Alcance'],['cur','Curtidas'],['com','Comentários'],['sal','Salvamentos'],['comp','Compartilhamentos'],['tot','Total de interações']];
 function dados(){const ts=[...new Set(S.posts.map(p=>p.tipo))],sel=(k,o)=>`<select onchange="DF.${k}=this.value;dtab()">${o.map(([v,l])=>`<option value="${v}" ${DF[k]==v?'selected':''}>${esc(l)}`).join('')}</select>`;
@@ -417,6 +417,88 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .cel-pv .nt{margin:40px 10px 0;background:rgba(239,230,210,.94);color:#1f1a14;border-radius:16px;padding:10px 12px;display:flex;gap:9px}
 .cel-pv .nt .ic{width:30px;height:30px;border-radius:8px;background:#1f1a14 url(/icone.png) center/cover;flex:none}
 .cel-pv .nt b{display:block;font-size:11px}.cel-pv .nt small{font-size:10px;color:#1f1a1499}.cel-pv .nt p{margin:2px 0 0;font-size:11px;line-height:1.35}
+</style>`);
+
+
+// ---------- 🎭 Estúdio de memes: imagem por IA grátis (Pollinations) + texto e marca montados aqui
+// o estúdio aparece para quem publica (não é um menu separado nos perfis de acesso)
+const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('posts')):ME.menus.includes(k);
+const MM_PERS=[['','Sem personagem'],['naru','Naru'],['zelda','Zelda'],['merlin','Merlin'],['spark','Spark'],['yoonari','Yoo Nari'],['baek','Sr. Baek']];
+const MM_FMT={ninguem:['😐','Ninguém:'],classico:['🔠','Clássico'],comparacao:['⚖️','Comparação'],pov:['👀','POV']};
+let MM={enviadas:[],fmt:'ninguem',pers:'naru',cena:'',cena2:'',topo:'',baixo:'',tam:'vertical',imgs:[],imgs2:[],sel:0,sel2:0,busy:'',ideias:[],chave:null,erro:''};
+async function mmStatus(){try{MM.chave=(await api('/api/meme',{acao:'status'})).chave}catch(e){MM.chave=false}if(tab=='memes')render()}
+function memes(){if(MM.chave===null)mmStatus();const c=MM.fmt=='comparacao',f=MM_FMT;
+ const lbl={ninguem:['Depois de “Ninguém:”','Ex.: A Naru às 3h da manhã:'],classico:['Texto de cima','Ex.: QUANDO O SR. BAEK DIZ'],comparacao:['Rótulo do 1º quadro','Ex.: Todo dorama:'],pov:['Texto do POV','Ex.: você é o gato e viu TUDO']}[MM.fmt];
+ const lbl2={classico:['Texto de baixo','Ex.: QUE NÃO É NADA'],comparacao:['Rótulo do 2º quadro','Ex.: Miados do Destino:']}[MM.fmt];
+ return `<div class="ax-top"><div><h2>🎭 Estúdio de memes</h2><p>Gere a imagem com IA grátis, escreva o texto e baixe o meme pronto com a marca.</p></div>
+  <span class="ax-st${MM.chave?'':' suj'}"><i></i>${MM.chave?'IA de imagem: FLUX (com a foto do personagem)':MM.chave===false?'IA de imagem: modo público (mais simples)':'Verificando a IA…'}</span></div>
+ <div class="mm"><div>
+  <div class="ax-sec"><h3>1. Formato</h3><div class="mm-fmt">${Object.entries(f).map(([k,[i,l]])=>`<button class="${MM.fmt==k?'on':''}" onclick="mmSalva();MM.fmt='${k}';render()"><i>${i}</i>${l}</button>`).join('')}</div>
+   <div class="ax-2" style="margin-top:12px"><label class="ax-f"><span>Personagem</span><select onchange="MM.pers=this.value;mmIdeiasLimpa()">${MM_PERS.map(([k,l])=>`<option value="${k}" ${MM.pers==k?'selected':''}>${l}</option>`).join('')}</select></label>
+   <label class="ax-f"><span>Tamanho</span><select onchange="MM.tam=this.value;MM.imgs=[];MM.imgs2=[];render()"><option value="vertical" ${MM.tam=='vertical'?'selected':''}>Feed vertical 4:5</option><option value="quadrado" ${MM.tam=='quadrado'?'selected':''}>Quadrado 1:1</option><option value="stories" ${MM.tam=='stories'?'selected':''}>Stories 9:16</option></select></label></div>
+   <button class="ax-add" onclick="mmIdeias()" ${MM.busy?'disabled':''}>${MM.busy=='ideias'?'⏳ Pensando…':'💡 Me dá 5 ideias de meme'}</button>
+   ${MM.ideias.length?`<div class="mm-ideias">${MM.ideias.map((x,i)=>`<button onclick="mmUsa(${i})"><b>${f[x.formato][0]} ${esc2(x.formato=='ninguem'?'Ninguém: / '+x.topo:x.topo+(x.baixo?' / '+x.baixo:''))}</b><small>${esc2(x.cena)}</small></button>`).join('')}</div>`:''}</div>
+  <div class="ax-sec"><h3>2. A imagem</h3><p class="d">Descreva a cena em português. A IA da Central escreve o prompt em inglês para você${MM.pers?' e usa a foto oficial do personagem como referência':''}.</p>
+   <label class="ax-f"><span>${c?'Cena do 1º quadro':'Cena'}</span><textarea id="mm-c" placeholder="Ex.: a Naru sentada no corredor escuro, encarando a câmera com cara de quem sabe de tudo">${esc2(MM.cena)}</textarea></label>
+   ${c?`<label class="ax-f"><span>Cena do 2º quadro</span><textarea id="mm-c2" placeholder="Ex.: a Naru ao lado da Yoo Nari assustada">${esc2(MM.cena2)}</textarea></label>`:''}
+   <div class="r"><button class="pr" onclick="mmGera()" ${MM.busy?'disabled':''}>${MM.busy=='gerar'?'⏳ Gerando… (de 10 s a 1 min)':'✨ Gerar 2 opções'}</button><label class="mm-up">📁 Usar minha imagem<input type="file" accept="image/*" hidden onchange="mmUp(this.files[0])"></label></div>
+   ${MM.erro?`<p class="dn">${esc2(MM.erro)}</p>`:''}
+   ${MM.imgs.length?`<div class="mm-ops">${MM.imgs.map((u,i)=>`<img src="${u}" class="${MM.sel==i?'on':''}" onclick="MM.sel=${i};mmDesenha();render()">`).join('')}</div>`:''}
+   ${c&&MM.imgs2.length?`<p class="mut" style="margin:10px 0 4px">2º quadro</p><div class="mm-ops">${MM.imgs2.map((u,i)=>`<img src="${u}" class="${MM.sel2==i?'on':''}" onclick="MM.sel2=${i};mmDesenha();render()">`).join('')}</div>`:''}</div>
+  <div class="ax-sec"><h3>3. O texto</h3>
+   <label class="ax-f"><span>${lbl[0]}</span><input id="mm-t" value="${esc2(MM.topo)}" placeholder="${lbl[1]}" oninput="MM.topo=this.value;mmDesenha()"></label>
+   ${lbl2?`<label class="ax-f"><span>${lbl2[0]}</span><input id="mm-b" value="${esc2(MM.baixo)}" placeholder="${lbl2[1]}" oninput="MM.baixo=this.value;mmDesenha()"></label>`:''}</div>
+ </div>
+ <div class="mm-pv"><div class="lb">Prévia</div><canvas id="mm-cv"></canvas>
+  <button class="pr" style="width:100%;margin-top:10px;padding:12px" onclick="mmBaixa()" ${MM.imgs.length?'':'disabled'}>⬇️ Baixar meme</button>
+  <p class="mut" style="font-size:12px;text-align:center">Confira mãos, olhos e detalhes antes de postar.</p></div></div>`}
+function mmSalva(){const v=id=>{const e=$('#'+id);return e?e.value:null};if(v('mm-c')!==null)MM.cena=v('mm-c');if(v('mm-c2')!==null)MM.cena2=v('mm-c2');if(v('mm-t')!==null)MM.topo=v('mm-t');if(v('mm-b')!==null)MM.baixo=v('mm-b')}
+function mmIdeiasLimpa(){mmSalva();MM.ideias=[];render()}
+async function mmIdeias(){mmSalva();MM.busy='ideias';MM.erro='';render();try{MM.ideias=(await api('/api/meme',{acao:'ideias',personagem:MM.pers})).ideias}catch(e){MM.erro=e.message}MM.busy='';render()}
+function mmUsa(i){const x=MM.ideias[i];Object.assign(MM,{fmt:x.formato,cena:x.cena,cena2:x.formato=='comparacao'?x.cena:'',topo:x.topo,baixo:x.baixo});render();mmDesenha()}
+async function mmGera(){mmSalva();if(!MM.cena.trim())return alert('Descreva a cena da imagem.');const c=MM.fmt=='comparacao';if(c&&!MM.cena2.trim())return alert('Descreva também o 2º quadro.');
+ MM.busy='gerar';MM.erro='';render();
+ const g=cena=>api('/api/meme',{acao:'gerar',cena,personagem:MM.pers,formato:c?'quadrado':MM.tam}).then(d=>{if(d.aviso)MM.erro=d.aviso;return d.img});
+ try{const pedidos=[MM.cena,MM.cena,...(c?[MM.cena2,MM.cena2]:[])],r=[];
+  // um de cada vez (o gerador grátis recusa pedidos simultâneos) e uma nova tentativa se falhar
+  for(const cena of pedidos){let v=null,er=null;for(let t=0;t<2&&!v;t++){try{v=await g(cena)}catch(e){er=e;await new Promise(z=>setTimeout(z,1500))}}r.push(v?{status:'fulfilled',value:v}:{status:'rejected',reason:er})}
+  const ok=r.map(x=>x.status=='fulfilled'?x.value:null);
+  MM.imgs=ok.slice(0,2).filter(Boolean);MM.imgs2=c?ok.slice(2).filter(Boolean):[];MM.sel=0;MM.sel2=0;
+  if(!MM.imgs.length)MM.erro=(r.find(x=>x.status=='rejected')||{}).reason?.message||'Não foi possível gerar. Tente de novo.'}catch(e){MM.erro=e.message}
+ MM.busy='';render();mmDesenha()}
+function mmUp(f){if(!f)return;mmSalva();const fr=new FileReader();fr.onload=()=>{MM.enviadas.push(fr.result);if(MM.fmt=='comparacao'&&MM.imgs.length&&!MM.imgs2.length){MM.imgs2=[fr.result];MM.sel2=0}else{MM.imgs=[fr.result];MM.sel=0}render();mmDesenha()};fr.readAsDataURL(f)}
+const mmImg=src=>new Promise((ok,er)=>{const i=new Image();i.onload=()=>{i.mmGerada=!MM.enviadas.includes(src);ok(i)};i.onerror=er;i.src=src});
+// corta 6% de baixo da imagem gerada (onde o gerador público põe a marca dele)
+function mmCobre(c,img,x,y,w,h){const ih=img.height*(img.mmGerada?.94:1),k=Math.max(w/img.width,h/ih),sw=w/k,sh=h/k;c.drawImage(img,(img.width-sw)/2,(ih-sh)*.35,sw,sh,x,y,w,h)}
+function mmLinhas(c,t,max){const out=[];for(const par of String(t).split('\n')){let l='';for(const p of par.split(' ')){const tt=l?l+' '+p:p;if(c.measureText(tt).width>max&&l){out.push(l);l=p}else l=tt}out.push(l)}return out}
+function mmContorno(c,t,x,y,size){c.font=`${size}px Anton, Impact, sans-serif`;c.lineJoin='round';c.lineWidth=size*.16;c.strokeStyle='#000';c.fillStyle='#fff';c.strokeText(t,x,y);c.fillText(t,x,y)}
+let mmIcone=null;
+async function mmDesenha(){const cv=$('#mm-cv');if(!cv)return;const W=1080,H=MM.fmt=='comparacao'?1350:{vertical:1350,quadrado:1080,stories:1920}[MM.tam];cv.width=W;cv.height=H;const c=cv.getContext('2d');
+ c.fillStyle='#17130f';c.fillRect(0,0,W,H);
+ if(!MM.imgs.length){c.fillStyle='#a8977c';c.font='600 40px system-ui';c.textAlign='center';c.fillText('A prévia aparece aqui',W/2,H/2);return}
+ await document.fonts.load('80px Anton').catch(()=>{});
+ const img=await mmImg(MM.imgs[MM.sel]);c.textAlign='left';c.textBaseline='alphabetic';
+ if(MM.fmt=='ninguem'){c.fillStyle='#fff';c.fillRect(0,0,W,H);c.font='700 58px system-ui, Arial';c.fillStyle='#111';const ls=['Ninguém:','',...mmLinhas(c,MM.topo||'…',W-120)];ls.forEach((l,i)=>c.fillText(l,60,95+i*70));const top=95+ls.length*70;mmCobre(c,img,0,top,W,H-top)}
+ else if(MM.fmt=='comparacao'){c.fillStyle='#fff';c.fillRect(0,0,W,H);const img2=MM.imgs2[MM.sel2]?await mmImg(MM.imgs2[MM.sel2]):img;c.font='700 52px system-ui, Arial';c.fillStyle='#111';
+  c.fillText(MM.topo||'Todo dorama:',50,80);c.save();c.beginPath();c.roundRect(50,110,W-100,520,18);c.clip();mmCobre(c,img,50,110,W-100,520);c.restore();
+  c.fillText(MM.baixo||'Miados do Destino:',50,710);c.save();c.beginPath();c.roundRect(50,740,W-100,540,18);c.clip();mmCobre(c,img2,50,740,W-100,540);c.restore()}
+ else{mmCobre(c,img,0,0,W,H);c.textAlign='center';
+  if(MM.fmt=='pov'){const t='POV: '+(MM.topo||'…');c.font='700 54px system-ui, Arial';const ls=mmLinhas(c,t,W-200),lh=68,bh=ls.length*lh+40,y0=H*.12;c.fillStyle='#fff';c.beginPath();c.roundRect(80,y0,W-160,bh,22);c.fill();c.fillStyle='#111';ls.forEach((l,i)=>c.fillText(l,W/2,y0+62+i*lh))}
+  else{const up=t=>String(t||'').toUpperCase();c.font='96px Anton, Impact';let ls=mmLinhas(c,up(MM.topo),W-100);ls.forEach((l,i)=>mmContorno(c,l,W/2,130+i*104,96));ls=mmLinhas(c,up(MM.baixo),W-100);ls.forEach((l,i)=>mmContorno(c,l,W/2,H-90-(ls.length-1-i)*104,96))}}
+ if(!mmIcone)mmIcone=await mmImg('/icone.png').catch(()=>null);
+ const fundoClaro=MM.fmt=='ninguem'||MM.fmt=='comparacao';c.textAlign='right';c.font='600 24px system-ui, Arial';const tx='@miadosdodestino',tw=c.measureText(tx).width;
+ if(!fundoClaro){c.fillStyle='rgba(0,0,0,.45)';c.beginPath();c.roundRect(W-tw-98,H-74,tw+70,48,24);c.fill()}
+ c.fillStyle=fundoClaro?'#5a4320':'#f3d98f';c.fillText(tx,W-40,H-41);if(mmIcone){c.save();c.beginPath();c.arc(W-tw-66,H-50,17,0,7);c.clip();c.drawImage(mmIcone,W-tw-83,H-67,34,34);c.restore()}}
+function mmBaixa(){const cv=$('#mm-cv');if(!cv)return;const a=document.createElement('a');a.href=cv.toDataURL('image/jpeg',.93);a.download='meme-miados-'+new Date().toISOString().slice(0,10)+'-'+Date.now().toString(36).slice(-4)+'.jpg';a.click()}
+document.head.insertAdjacentHTML('beforeend',`<style>
+.mm{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:22px;align-items:start}@media(max-width:900px){.mm{grid-template-columns:1fr}}
+.mm-pv{position:sticky;top:12px}.mm-pv .lb{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);text-align:center;margin-bottom:8px}
+#mm-cv{width:100%;height:auto;border-radius:14px;border:1px solid var(--bd);box-shadow:0 14px 40px rgba(0,0,0,.3);background:#17130f}
+.mm-fmt{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}@media(max-width:600px){.mm-fmt{grid-template-columns:repeat(2,1fr)}}
+.mm-fmt button{display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 6px;font-weight:600;font-size:13px}.mm-fmt i{font-style:normal;font-size:24px}
+.mm-ops{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.mm-ops img{width:100%;border-radius:12px;border:3px solid transparent;cursor:pointer}.mm-ops img.on{border-color:var(--gd)}
+.mm-up{display:inline-flex;align-items:center;justify-content:center;border:1px dashed var(--bd);border-radius:10px;padding:8px 12px;cursor:pointer;color:var(--mut);font-weight:600}.mm-up:hover{border-color:var(--gd)}
+.mm-ideias{display:grid;gap:8px;margin-top:10px}.mm-ideias button{text-align:left;display:grid;gap:3px;padding:10px 12px}.mm-ideias small{color:var(--mut)}
 </style>`);
 
 // ---------- 📱 App: vídeos, papéis de parede, sussurros, créditos e recursos
