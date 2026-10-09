@@ -166,7 +166,7 @@ function render(){nav();$('#mes').value=mes;['painel','equipe','dados','posts','
  const a=document.activeElement;if(tab=='feed'&&a&&a.id=='fp')return;$('#s-'+tab).innerHTML=f();if(tab=='posts')pl();if(tab=='dados')dtab()}
 $('#mes').onchange=e=>{mes=e.target.value||mes;fbTxt='';fbBusy=false;fbN++;render()};
 </script><div id="lg" style="position:fixed;inset:0;background:var(--bg);z-index:50;display:none;align-items:center;justify-content:center;padding:18px"></div><script>let ME=null,ROLES=[],ED=null,FOTO='',RD=null;
-const MN={painel:'📊 Painel',equipe:'🐾 Equipe',dados:'📝 Dados',posts:'🖼️ Posts',publicar:'📤 Publicar',memes:'🎭 Memes',feed:'💌 Feedback',relatorio:'📄 Relatório',app:'📱 App',acessos:'🔐 Acessos'};
+const MN={painel:'📊 Painel',equipe:'🐾 Equipe',dados:'📝 Dados',posts:'🖼️ Posts',publicar:'📤 Publicar',memes:'🎭 Memes',redes:'📲 TikTok e Kwai',feed:'💌 Feedback',relatorio:'📄 Relatório',app:'📱 App',acessos:'🔐 Acessos'};
 const PH='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72"><rect width="72" height="72" rx="36" fill="#8884"/><text x="36" y="46" font-size="30" text-anchor="middle">📷</text></svg>');
 document.head.insertAdjacentHTML('beforeend','<style>.ini{display:flex;align-items:center;justify-content:center;background:var(--gd);color:#17130f;font-weight:700;border-radius:50%}.me{display:flex;align-items:center;gap:8px;margin-left:8px}.me .av{width:34px;height:34px}.dn{color:var(--no)}</style>');
 async function api(url,body){const r=await fetch(url,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',Authorization:'Bearer '+(localStorage.getItem('mtk')||'')},body:body?JSON.stringify(body):undefined});const j=await r.json().catch(()=>({}));if(r.status==401&&url!='/api/auth'){logout();throw new Error('Sessão expirada')}if(!r.ok)throw new Error(j.erro||('Erro '+r.status));return j}
@@ -175,7 +175,7 @@ function logout(){localStorage.removeItem('mtk');ME=null;S={team:[],posts:[],seg
 function loginUI(setup,err=''){const L=$('#lg');L.style.display='flex';L.innerHTML=`<div class="c" style="max-width:380px;width:100%;text-align:center"><img src="${document.querySelector('header img').src}" style="height:64px;background:#17130f;padding:8px 16px;border-radius:12px"><h3>${setup?'Primeiro acesso: criar administrador':'Entrar'}</h3>${err?`<p class="dn">${esc(err)}</p>`:''}<div style="display:grid;gap:8px">${setup?'<input id="ln" placeholder="Seu nome">':''}<input id="le" type="email" placeholder="E-mail"><input id="ls" type="password" placeholder="Senha${setup?' (mín. 8 caracteres)':''}" onkeydown="if(event.key==='Enter')go(${setup})"><button class="pr" onclick="go(${setup})">${setup?'Criar e entrar':'Entrar'}</button></div></div>`}
 async function go(setup){try{const d=await api('/api/auth',setup?{acao:'setup',nome:$('#ln').value,email:$('#le').value,senha:$('#ls').value}:{acao:'login',email:$('#le').value,senha:$('#ls').value});localStorage.setItem('mtk',d.token);await load()}catch(e){loginUI(setup,e.message)}}
 async function refresh(){const d=await api('/api/app');ME=d.me;S.team=d.users;ROLES=d.roles;return d}
-async function load(){const d=await refresh();Object.assign(S,{resp:d.state.resp,notes:d.state.notes,seg:d.state.seg,last:d.state.last,padrao:d.state.padrao||''});$('#lg').style.display='none';render();syncInicial()}
+async function load(){const tkr=new URLSearchParams(location.search).get('tiktok');if(tkr){tab='redes';history.replaceState(null,'','/');setTimeout(()=>alert(tkr=='ok'?'TikTok conectado! ✅':'Não deu para conectar o TikTok. Tente de novo.'),600)}const d=await refresh();Object.assign(S,{resp:d.state.resp,notes:d.state.notes,seg:d.state.seg,last:d.state.last,padrao:d.state.padrao||''});$('#lg').style.display='none';render();syncInicial()}
 function save(){clearTimeout(tm);tm=setTimeout(()=>api('/api/app',{acao:'salvar_estado',estado:{resp:S.resp,notes:S.notes,seg:S.seg,last:S.last,padrao:S.padrao||''}}).catch(()=>{}),400);render()}
 function setR(id,v){S.resp[id]=v;const p=S.posts.find(x=>x.id==id);if(p)p.resp=v||S.padrao||'';save()}
 function setPad(v){S.padrao=v;S.posts.forEach(p=>p.resp=S.resp[p.id]||v||'');api('/api/app',{acao:'salvar_padrao',padrao:v}).catch(e=>alert(e.message));render()}
@@ -190,7 +190,7 @@ async function syncInicial(){let ok=false;try{const l=JSON.parse(localStorage.ge
  if(!ok)try{const d=await api('/api/sync?cache=1');aplicaSync(d,d.cacheEm?new Date(d.cacheEm).toLocaleString('pt-BR'):'');guardaSync(d);render()}catch(e){}
  sync()}
 function nav(){$('#nv').innerHTML=Object.keys(MN).filter(podeVer).map(k=>`<button class="${tab==k?'on':''}" onclick="tab='${k}';render()">${MN[k]}</button>`).join('')+`<span class="me">${av(ME)}<span>${esc(ME.nome.split(' ')[0])}</span><button onclick="logout()">Sair</button></span>`}
-function render(){if(!ME)return;const M=Object.keys(MN).filter(podeVer);if(!M.includes(tab))tab=M[0];nav();$('#mes').value=mes;Object.keys(MN).forEach(k=>{let e=$('#s-'+k);if(!e){e=document.createElement('section');e.id='s-'+k;$('main').append(e)}e.classList.toggle('on',k==tab)});const a=document.activeElement;if(a&&(tab=='feed'&&a.id=='fp'||tab=='publicar'&&a.id=='pleg'))return;$('#s-'+tab).innerHTML=({painel,equipe,dados,posts,feed,relatorio,acessos,publicar,memes,app:appPainel})[tab]();if(tab=='publicar')pInit();if(tab=='memes')mmDesenha();if(tab=='posts')pl();if(tab=='dados')dtab();}
+function render(){if(!ME)return;const M=Object.keys(MN).filter(podeVer);if(!M.includes(tab))tab=M[0];nav();$('#mes').value=mes;Object.keys(MN).forEach(k=>{let e=$('#s-'+k);if(!e){e=document.createElement('section');e.id='s-'+k;$('main').append(e)}e.classList.toggle('on',k==tab)});const a=document.activeElement;if(a&&(tab=='feed'&&a.id=='fp'||tab=='publicar'&&a.id=='pleg'))return;$('#s-'+tab).innerHTML=({painel,equipe,dados,posts,feed,relatorio,acessos,publicar,memes,redes,app:appPainel})[tab]();if(tab=='publicar')pInit();if(tab=='memes')mmDesenha();if(tab=='posts')pl();if(tab=='dados')dtab();}
 let DF={q:'',t:'',r:'',o:'data',d:-1,all:false};
 const DO=[['data','Data'],['vis','Visualizações'],['alc','Alcance'],['cur','Curtidas'],['com','Comentários'],['sal','Salvamentos'],['comp','Compartilhamentos'],['tot','Total de interações']];
 function dados(){const ts=[...new Set(S.posts.map(p=>p.tipo))],sel=(k,o)=>`<select onchange="DF.${k}=this.value;dtab()">${o.map(([v,l])=>`<option value="${v}" ${DF[k]==v?'selected':''}>${esc(l)}`).join('')}</select>`;
@@ -441,9 +441,73 @@ function apTestadores(){if(TST===null){apTstCarrega();return '<div class="ax-sec
  <div class="ax-sec"><h3>Inscritos</h3>${n?`<table class="tst-t"><tr><th>Nome</th><th>E-mail</th><th>Quando</th><th></th></tr>${TST.map(x=>`<tr><td>${esc2(x.nome)||'—'}</td><td>${esc2(x.email)}</td><td>${new Date(x.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</td><td><button class="ax-ib x" onclick="apTstRm('${esc2(x.email)}')">✕</button></td></tr>`).join('')}</table>`:'<div class="ax-empty">Ninguém se inscreveu ainda. Divulgue a página /testar no Instagram.</div>'}</div>`}
 document.head.insertAdjacentHTML('beforeend',`<style>.tst-meta{font-size:15px;margin:10px 0 4px}.tst-meta b{color:var(--gd);font-size:20px}.tst-barra{height:10px;border-radius:9px;background:var(--bd);overflow:hidden;margin-top:8px}.tst-barra i{display:block;height:100%;background:linear-gradient(90deg,#b8892c,#f3d98f)}.tst-t td{font-size:14px}</style>`);
 
+
+// ---------- 📲 TikTok e Kwai: fila diária com os posts do Instagram, sem repetir
+let RD2=null,RDF='fila',RDB='';
+const RD_EST={fila:['⏳','Na fila'],postado:['✅','Postado'],ja_tinha:['☑️','Já estava lá'],pular:['⏭️','Pular']};
+async function rdCarrega(){try{RD2=await api('/api/redes',{acao:'estado'})}catch(e){RD2={erro:e.message}}if(tab=='redes')render()}
+async function rdAcao(corpo,msg){RDB=msg||'…';render();try{const d=await api('/api/redes',corpo);RDB='';await rdCarrega();return d}catch(e){RDB='';render();alert(e.message)}}
+async function rdAtualiza(){const d=await rdAcao({acao:'atualizar'},'Puxando os posts do Instagram…');if(d)alert(`${d.total} posts na lista · ${d.novos} novo(s)${d.jaTinha?` · ${d.jaTinha} já estava(m) no TikTok`:''}`)}
+const rdMarca=(id,rede,estado)=>rdAcao({acao:'marcar',id,rede,estado});
+async function rdAgora(id){if(!(await confirma('Publicar este post no TikTok agora?','Publicar',false)))return;const d=await rdAcao({acao:'publicar_agora',id},'Publicando no TikTok…');if(d)alert('Enviado para o TikTok.')}
+async function rdLogin(){const d=await rdAcao({acao:'tiktok_login'});if(d&&d.url)location.href=d.url}
+async function rdVerif(){const n=($('#rd-vn').value||'').trim(),c=($('#rd-vc').value||'').trim();const d=await rdAcao({acao:'tiktok_verificacao',nome:n,conteudo:c});if(d)alert('Pronto. No TikTok for Developers, verifique o prefixo:\n'+d.url.replace(/[^/]*$/,''))}
+async function rdBaixa(it){RDB='Preparando os arquivos…';render();try{const m=await api('/api/redes',{acao:'midia',id:it.id});if(m.video)window.open(m.video,'_blank');for(const[i,u]of m.fotos.entries()){const r=await fetch(u);if(!r.ok)throw new Error('Não consegui baixar a foto '+(i+1)+' ('+r.status+')');const a=document.createElement('a');a.href=URL.createObjectURL(await r.blob());a.download='miados-'+it.id+(m.fotos.length>1?'-'+(i+1):'')+'.jpg';a.click();await new Promise(z=>setTimeout(z,400))}}catch(e){alert(e.message)}RDB='';render()}
+function rdCopia(id){const it=RD2.fila.find(x=>x.id==id);navigator.clipboard.writeText(it.legenda||'').then(()=>alert('Legenda copiada.'),()=>prompt('Copie a legenda:',it.legenda))}
+function redes(){if(!RD2){rdCarrega();return '<div class="ax-sec"><div class="ax-empty">Carregando a fila…</div></div>'}
+ if(RD2.erro)return `<div class="ax-sec"><div class="ax-empty">${esc2(RD2.erro)}</div></div>`;
+ const f=RD2.fila||[],cont=r=>Object.fromEntries(Object.keys(RD_EST).map(k=>[k,f.filter(x=>(x[r]?.estado||'fila')==k).length]));
+ const ct=cont('tiktok'),ck=cont('kwai'),prox=r=>f.find(x=>(x[r]?.estado||'fila')=='fila'),hojeK=f.find(x=>x.kwai?.dia==new Date(Date.now()-3*3600e3).toISOString().slice(0,10)&&x.kwai.estado=='fila')||prox('kwai');
+ const tk=RD2.tiktok,priv=tk&&!(tk.privacidades||[]).includes('PUBLIC_TO_EVERYONE');
+ const card=(it,rede)=>it?`<div class="rd-card"><a href="${esc2(it.link)}" target="_blank" class="rd-th">${it.tipo=='foto'||it.tipo=='carrossel'?`<img src="/midia/${it.id}_0.jpg" loading="lazy" alt="">`:'<span>🎬</span>'}</a><div><small>${({foto:'Foto',carrossel:'Carrossel',reels:'Reels',video:'Vídeo'})[it.tipo]||''} · ${new Date(it.data).toLocaleDateString('pt-BR')}</small><p>${esc2((it.legenda||'(sem legenda)').slice(0,140))}</p></div></div>`:'<div class="ax-empty">Fila vazia 🎉</div>';
+ const lista=f.filter(x=>RDF=='fila'?((x.tiktok?.estado||'fila')=='fila'||(x.kwai?.estado||'fila')=='fila'):RDF=='feitos'?!((x.tiktok?.estado||'fila')=='fila'&&(x.kwai?.estado||'fila')=='fila'):true);
+ const sel=(it,r)=>`<select onchange="rdMarca('${it.id}','${r}',this.value)">${Object.entries(RD_EST).map(([k,[i,l]])=>`<option value="${k}" ${(it[r]?.estado||'fila')==k?'selected':''}>${i} ${l}</option>`).join('')}</select>`;
+ return `<div class="ax-top"><div><h2>📲 TikTok e Kwai</h2><p>Todo dia ao meio-dia sai um post do Instagram, sem repetir. O TikTok publica sozinho; o Kwai avisa no celular para você postar.</p></div>
+  <div class="ax-topd">${RDB?`<span class="ax-st suj"><i></i>${esc2(RDB)}</span>`:`<label class="ax-st" style="cursor:pointer"><input type="checkbox" ${RD2.config?.ativo!==false?'checked':''} onchange="rdAcao({acao:'config',config:{...RD2.config,ativo:this.checked}})"> Automação ${RD2.config?.ativo!==false?'ligada':'pausada'}</label>`}<button onclick="rdAtualiza()">🔄 Puxar posts do Instagram</button></div></div>
+ ${!f.length?`<div class="ax-sec"><div class="ax-empty">A fila está vazia. Toque em <b>🔄 Puxar posts do Instagram</b> para montar a fila${tk?' (ele também compara com o que já está no seu TikTok)':''}.</div></div>`:''}
+ <div class="rd-g">
+  <div class="ax-sec"><h3>🎵 TikTok</h3>
+   ${tk?`<p class="d">Conectado: <b>${esc2(tk.nome||tk.usuario||'conta TikTok')}</b>${priv?' · <span class="dn">os posts saem <b>privados</b> até o TikTok aprovar a auditoria do app</span>':''}</p>`:RD2.app?`<p class="d">Falta conectar a conta.</p><button class="pr" onclick="rdLogin()">Conectar TikTok</button>`:'<p class="d">Falta criar o app no TikTok for Developers (veja “Configurar o TikTok” abaixo).</p>'}
+   <div class="rd-n"><span>⏳ ${ct.fila} na fila</span><span>✅ ${ct.postado} postados</span><span>☑️ ${ct.ja_tinha} já estavam lá</span></div>
+   <div class="mut" style="font-size:12px;margin:10px 0 4px">PRÓXIMO</div>${card(prox('tiktok'))}
+   ${tk&&prox('tiktok')?`<button style="margin-top:8px" onclick="rdAgora('${prox('tiktok').id}')">🚀 Publicar este agora</button>`:''}</div>
+  <div class="ax-sec"><h3>🎬 Kwai</h3><p class="d">O Kwai não deixa publicar por automação: aqui fica o post de hoje pronto para postar.</p>
+   <div class="rd-n"><span>⏳ ${ck.fila} na fila</span><span>✅ ${ck.postado} postados</span><span>☑️ ${ck.ja_tinha} já estavam lá</span></div>
+   <div class="mut" style="font-size:12px;margin:10px 0 4px">POST DE HOJE</div>${card(hojeK)}
+   ${hojeK?`<div class="r" style="margin-top:8px"><button onclick="rdBaixa({id:'${hojeK.id}'})">⬇️ Baixar ${hojeK.tipo=='reels'||hojeK.tipo=='video'?'vídeo':hojeK.tipo=='carrossel'?'fotos':'imagem'}</button><button onclick="rdCopia('${hojeK.id}')">📋 Copiar legenda</button><button class="pr" onclick="rdMarca('${hojeK.id}','kwai','postado')">✅ Postei</button></div>`:''}
+   <label class="ax-sw" style="margin-top:12px"><input type="checkbox" ${RD2.config?.kwaiAviso!==false?'checked':''} onchange="rdAcao({acao:'config',config:{...RD2.config,kwaiAviso:this.checked}})"><span class="t"></span><div><b>Avisar no celular</b><small>Notificação ao meio-dia nos aparelhos da equipe (aba App › Aparelhos).</small></div></label></div>
+ </div>
+ ${f.length?`<div class="ax-sec"><h3>Fila</h3><p class="d">O que já foi postado ou já estava no TikTok/Kwai fica marcado e não sai de novo. Marque “Já estava lá” nos posts que vocês já colocaram no Kwai.</p>
+  <div class="ax-tabs" style="display:flex!important;grid-template-columns:none">${[['fila','Na fila'],['feitos','Já foram'],['todos','Todos']].map(([k,l])=>`<button class="${RDF==k?'on':''}" onclick="RDF='${k}';render()" style="min-height:0!important;flex-direction:row!important">${l}</button>`).join('')}</div>
+  <div class="rd-lista">${lista.slice(0,80).map((it,i)=>`<div class="rd-it"><a href="${esc2(it.link)}" target="_blank" class="rd-th">${it.tipo=='foto'||it.tipo=='carrossel'?`<img src="/midia/${it.id}_0.jpg" loading="lazy" alt="">`:'<span>🎬</span>'}</a>
+   <div class="rd-tx"><small>${({foto:'Foto',carrossel:'Carrossel',reels:'Reels',video:'Vídeo'})[it.tipo]||''} · ${new Date(it.data).toLocaleDateString('pt-BR')} · ❤️ ${it.engaj}</small><p>${esc2((it.legenda||'(sem legenda)').slice(0,110))}</p></div>
+   <div class="rd-sel"><label>TikTok ${sel(it,'tiktok')}</label><label>Kwai ${sel(it,'kwai')}</label><div><button class="ax-ib" title="Para o topo da fila" onclick="rdAcao({acao:'mover',id:'${it.id}',posicao:'topo'})">⤒</button><button class="ax-ib" title="Para o fim da fila" onclick="rdAcao({acao:'mover',id:'${it.id}',posicao:'fim'})">⤓</button></div></div></div>`).join('')||'<div class="ax-empty">Nada aqui.</div>'}</div></div>`:''}
+ ${(RD2.log||[]).length?`<div class="ax-sec"><h3>Histórico</h3><div class="ax-hist">${RD2.log.slice(0,15).map(l=>`<div class="ax-h"><div class="ic">${l.rede=='tiktok'?'🎵':l.rede=='kwai'?'🎬':'📋'}</div><div><div>${esc2(l.texto)}</div><small>${new Date(l.quando).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})}</small></div></div>`).join('')}</div></div>`:''}
+ <details class="ax-sec"><summary><b>⚙️ Configurar o TikTok</b> (uma vez)</summary>
+  <ol class="rd-passos"><li>Entre em <a href="https://developers.tiktok.com/apps" target="_blank">developers.tiktok.com</a> com a conta do TikTok da série e crie um app.</li>
+   <li>Adicione os produtos <b>Login Kit</b> e <b>Content Posting API</b> (ative <b>Direct Post</b>). Peça os escopos <code>user.info.basic</code>, <code>video.publish</code> e <code>video.list</code>.</li>
+   <li>Em Login Kit, cadastre o Redirect URI: <code>https://miadosdodestinocentral.vercel.app/api/redes?acao=tiktok_retorno</code></li>
+   <li>Em Content Posting API › <b>Verify URL properties</b>, escolha “URL prefix” com <code>https://miadosdodestinocentral.vercel.app/midia/</code>. O TikTok vai mostrar um arquivo para baixar: cole o nome e o conteúdo dele aqui embaixo e depois clique em Verify lá.</li>
+   <li>Copie o <b>Client key</b> e o <b>Client secret</b> e mande para o Rodrigo cadastrar na Vercel (<code>TIKTOK_CLIENT_KEY</code> e <code>TIKTOK_CLIENT_SECRET</code>).</li>
+   <li>Volte aqui e toque em <b>Conectar TikTok</b>. Depois envie o app para <b>auditoria</b> no TikTok (até ela ser aprovada, os posts saem privados).</li></ol>
+  <div class="ax-2"><label class="ax-f"><span>Nome do arquivo de verificação</span><input id="rd-vn" value="${esc2(RD2.verificacao)}" placeholder="tiktokXXXX.txt"></label><label class="ax-f"><span>Conteúdo do arquivo</span><input id="rd-vc" placeholder="tiktok-developers-site-verification=…"></label></div>
+  <button onclick="rdVerif()">Salvar arquivo de verificação</button>${tk?` <button onclick="rdAcao({acao:'tiktok_sair'})">Desconectar TikTok</button>`:''}</details>`}
+document.head.insertAdjacentHTML('beforeend',`<style>
+.rd-g{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:800px){.rd-g{grid-template-columns:1fr}}
+.rd-n{display:flex;gap:10px;flex-wrap:wrap;font-size:13px}.rd-n span{background:var(--bg);border:1px solid var(--bd);border-radius:999px;padding:4px 10px}
+.rd-card{display:grid;grid-template-columns:84px minmax(0,1fr);gap:12px;align-items:start;padding:10px;border:1px solid var(--bd);border-radius:12px;background:var(--bg)}
+.rd-th{display:flex;align-items:center;justify-content:center;width:84px;aspect-ratio:4/5;border-radius:10px;overflow:hidden;background:var(--bd);font-size:28px;text-decoration:none}.rd-th img{width:100%;height:100%;object-fit:cover}
+.rd-card small,.rd-tx small{color:var(--mut)}.rd-card p,.rd-tx p{margin:4px 0 0;font-size:13px}
+.rd-lista{display:grid;gap:8px;margin-top:10px}.rd-it{display:grid;grid-template-columns:64px minmax(0,1fr) 230px;gap:12px;align-items:center;padding:8px;border:1px solid var(--bd);border-radius:12px;background:var(--bg)}
+.rd-it .rd-th{width:64px}.rd-sel{display:grid;gap:6px;font-size:12px}.rd-sel label{display:flex;gap:6px;align-items:center;justify-content:space-between}.rd-sel select{font-size:12px;padding:5px 6px}.rd-sel>div{display:flex;gap:6px;justify-content:flex-end}
+@media(max-width:700px){.rd-it{grid-template-columns:64px minmax(0,1fr)}.rd-sel{grid-column:1/-1}}
+.rd-passos li{margin-bottom:8px;font-size:14px}.rd-passos code{font-size:12px;word-break:break-all}
+details.ax-sec summary{cursor:pointer}
+</style>`);
+
 // ---------- 🎭 Estúdio de memes: imagem por IA grátis (Pollinations) + texto e marca montados aqui
 // o estúdio aparece para quem publica (não é um menu separado nos perfis de acesso)
-const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('posts')):ME.menus.includes(k);
+const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('posts')):k=='redes'?ME.menus.includes('publicar'):ME.menus.includes(k);
 const MM_PERS=[['','Sem personagem'],['naru','Naru'],['zelda','Zelda'],['merlin','Merlin'],['spark','Spark'],['yoonari','Yoo Nari'],['baek','Sr. Baek']];
 const MM_FMT={ninguem:['😐','Ninguém:'],classico:['🔠','Clássico'],comparacao:['⚖️','Comparação'],pov:['👀','POV']};
 let MM={enviadas:[],fmt:'ninguem',pers:'naru',cena:'',cena2:'',topo:'',baixo:'',tam:'vertical',imgs:[],imgs2:[],sel:0,sel2:0,busy:'',ideias:[],chave:null,erro:''};
