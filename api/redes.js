@@ -27,7 +27,7 @@ const CENTRAL = 'https://miadosdodestinocentral.vercel.app';
 const IG = 'https://graph.instagram.com';
 const TT = 'https://open.tiktokapis.com';
 const REDIRECT = CENTRAL + '/tiktok/retorno'; // o TikTok não aceita ? no Redirect URI: rewrite em vercel.json
-const ESCOPOS = 'user.info.basic,video.publish,video.list';
+const ESCOPOS = 'user.info.basic,video.publish,video.upload,video.list';
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------- dados
@@ -87,10 +87,20 @@ async function ttConta(r) {
   await dbSet('tiktok_conta', n);
   return n;
 }
+// erros comuns do TikTok, em português
+const TT_ERROS = {
+  unaudited_client_can_only_post_to_private_accounts: 'enquanto o app não for aprovado na revisão, o TikTok só publica direto em conta privada',
+  spam_risk_too_many_posts: 'limite de posts do dia atingido no TikTok',
+  spam_risk_too_many_pending_share: 'já há 5 rascunhos esperando na caixa de entrada do TikTok: publique ou apague algum',
+  reached_active_user_cap: 'limite diário de usuários do app atingido',
+  privacy_level_option_mismatch: 'opção de privacidade não permitida para essa conta',
+  url_ownership_unverified: 'o endereço /midia/ ainda não foi verificado no TikTok for Developers (URL properties)',
+  scope_not_authorized: 'falta permissão: conecte o TikTok de novo'
+};
 async function tt(c, path, body, q = '') {
   const r = await fetch(TT + path + q, { method: 'POST', headers: { Authorization: 'Bearer ' + c.token, 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify(body || {}) });
   const j = await r.json().catch(() => ({}));
-  if (j.error && j.error.code !== 'ok') throw new Error('TikTok: ' + (j.error.message || j.error.code));
+  if (j.error && j.error.code !== 'ok') throw Object.assign(new Error('TikTok: ' + (TT_ERROS[j.error.code] || j.error.message || j.error.code)), { codigo: j.error.code });
   return j.data || {};
 }
 async function videosTikTok(c) {
@@ -109,23 +119,37 @@ function textos(legenda) {
   return { titulo, descricao: l.slice(0, 3990) };
 }
 async function publicarTikTok(c, item) {
-  const info = await tt(c, '/v2/post/publish/creator_info/query/');
-  const opcoes = info.privacy_level_options || [];
-  const privacidade = opcoes.includes('PUBLIC_TO_EVERYONE') ? 'PUBLIC_TO_EVERYONE' : opcoes.includes('FOLLOWER_OF_CREATOR') ? 'FOLLOWER_OF_CREATOR' : 'SELF_ONLY';
+  // tenta publicar direto; se o TikTok recusar por o app ainda não ter passado na revisão,
+  // manda como rascunho para a caixa de entrada do TikTok (a equipe toca na notificação e publica)
+  try { return await enviarTikTok(c, item, 'direto'); }
+  catch (e) {
+    if (e.codigo !== 'unaudited_client_can_only_post_to_private_accounts' || !(c.escopos || '').includes('video.upload')) throw e;
+    return await enviarTikTok(c, item, 'rascunho');
+  }
+}
+async function enviarTikTok(c, item, modo) {
   const m = await midiaInstagram(item.id), { titulo, descricao } = textos(item.legenda);
-  const comum = { privacy_level: privacidade, disable_comment: false };
+  let privacidade = 'RASCUNHO', comum = {};
+  if (modo === 'direto') {
+    const opcoes = (await tt(c, '/v2/post/publish/creator_info/query/')).privacy_level_options || [];
+    privacidade = opcoes.includes('PUBLIC_TO_EVERYONE') ? 'PUBLIC_TO_EVERYONE' : opcoes.includes('FOLLOWER_OF_CREATOR') ? 'FOLLOWER_OF_CREATOR' : 'SELF_ONLY';
+    comum = { privacy_level: privacidade, disable_comment: false };
+  }
   if (m.tipo === 'video' || (m.tipo === 'misto' && !m.fotos.length)) {
     // vídeo: baixa do Instagram e envia em um pedaço só (FILE_UPLOAD)
     const buf = Buffer.from(await (await fetch(m.video)).arrayBuffer());
-    const d = await tt(c, '/v2/post/publish/video/init/', { post_info: { ...comum, title: descricao.slice(0, 2190), is_aigc: true, disable_duet: false, disable_stitch: false }, source_info: { source: 'FILE_UPLOAD', video_size: buf.length, chunk_size: buf.length, total_chunk_count: 1 } });
+    const source_info = { source: 'FILE_UPLOAD', video_size: buf.length, chunk_size: buf.length, total_chunk_count: 1 };
+    const d = modo === 'direto'
+      ? await tt(c, '/v2/post/publish/video/init/', { post_info: { ...comum, title: descricao.slice(0, 2190), is_aigc: true, disable_duet: false, disable_stitch: false }, source_info })
+      : await tt(c, '/v2/post/publish/inbox/video/init/', { source_info });
     const up = await fetch(d.upload_url, { method: 'PUT', headers: { 'Content-Type': 'video/mp4', 'Content-Length': String(buf.length), 'Content-Range': `bytes 0-${buf.length - 1}/${buf.length}` }, body: buf });
     if (!up.ok) throw new Error('TikTok recusou o envio do vídeo (' + up.status + ')');
     return { publish_id: d.publish_id, privacidade, formato: 'vídeo' };
   }
   // fotos: o TikTok puxa de um endereço verificado (/midia/ na Central)
   const fotos = m.fotos.slice(0, 35).map((_, i) => `${CENTRAL}/midia/${item.id}_${i}.jpg`);
-  const d = await tt(c, '/v2/post/publish/content/init/', { media_type: 'PHOTO', post_mode: 'DIRECT_POST', is_aigc: true,
-    post_info: { ...comum, title: titulo, description: descricao, auto_add_music: true }, source_info: { source: 'PULL_FROM_URL', photo_cover_index: 0, photo_images: fotos } });
+  const d = await tt(c, '/v2/post/publish/content/init/', { media_type: 'PHOTO', post_mode: modo === 'direto' ? 'DIRECT_POST' : 'MEDIA_UPLOAD', ...(modo === 'direto' ? { is_aigc: true } : {}),
+    post_info: { ...comum, title: titulo, description: descricao, ...(modo === 'direto' ? { auto_add_music: true } : {}) }, source_info: { source: 'PULL_FROM_URL', photo_cover_index: 0, photo_images: fotos } });
   return { publish_id: d.publish_id, privacidade, formato: fotos.length > 1 ? `carrossel (${fotos.length} fotos)` : 'foto' };
 }
 
@@ -161,9 +185,9 @@ async function atualizar(r) {
   r.atualizado = new Date().toISOString();
   return { novos: novos.length, jaTinha, total: r.ordem.length };
 }
-async function avisarKwai(item) {
+const avisarKwai = () => avisarEquipe('📲 Kwai: o post de hoje está pronto', 'Abra a Central › TikTok e Kwai: baixe a imagem, copie a legenda e poste. Depois toque em "Postei".');
+async function avisarEquipe(titulo, texto) {
   const ap = (await dbGet('push_aparelhos')) || [];
-  const titulo = '📲 Kwai: o post de hoje está pronto', texto = 'Abra a Central › TikTok e Kwai: baixe a imagem, copie a legenda e poste. Depois toque em "Postei".';
   let ok = 0;
   for (const a of ap.slice(-10)) { try { await enviarPush({ titulo, texto, token: a.token }); ok++; } catch (e) {} }
   return ok;
@@ -180,7 +204,8 @@ async function diario(r, forcarId) {
     try {
       const p = await publicarTikTok(c, itT);
       itT.tiktok = { estado: 'postado', quando: new Date().toISOString(), dia: hojeBR(), publish_id: p.publish_id, privacidade: p.privacidade };
-      registrar(r, 'tiktok', `Publicado (${p.formato}, ${p.privacidade === 'SELF_ONLY' ? 'privado até a auditoria' : 'público'}): ${textos(itT.legenda).titulo}`);
+      registrar(r, 'tiktok', p.privacidade === 'RASCUNHO' ? `Enviado como rascunho (${p.formato}): abra o TikTok, toque na notificação da caixa de entrada e publique. ${textos(itT.legenda).titulo}` : `Publicado (${p.formato}, ${p.privacidade === 'SELF_ONLY' ? 'privado até a auditoria' : 'público'}): ${textos(itT.legenda).titulo}`);
+      if (p.privacidade === 'RASCUNHO') await avisarEquipe('🎵 TikTok: rascunho pronto', 'Abra o TikTok e toque na notificação da caixa de entrada para publicar o post de hoje.');
       out.tiktok = 'ok';
     } catch (e) { registrar(r, 'tiktok', 'Falhou: ' + e.message); out.tiktok = 'erro: ' + e.message; }
   }
