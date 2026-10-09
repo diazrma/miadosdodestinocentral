@@ -12,12 +12,12 @@ const { perguntar } = require('../lib/groq');
 const BASE = 'https://gen.pollinations.ai';
 const PUBLICO = 'https://image.pollinations.ai/prompt/';
 const CENTRAL = 'https://miadosdodestinocentral.vercel.app';
-// a Milka fica de fora: segredo até o enigma ser revelado
 const PERSONAGENS = {
   naru: 'Naru, a black-and-white tuxedo cat with yellow eyes, white chest and white paws',
   zelda: 'Zelda, a tortoiseshell cat with amber eyes',
   merlin: 'Merlin, a grey tabby cat with golden eyes',
   spark: 'Spark, a Siamese cat with bright blue eyes and dark face',
+  milka: 'Milka, a fluffy long-haired calico cat (white, orange and black patches) with green eyes, sweet and slightly chubby',
   yoonari: 'Yoo Nari, a young Korean woman in her late 20s with long straight black hair, gentle face',
   baek: 'Sr. Baek, a Korean man in his 50s with short black hair, serious face, beige suit',
 };
@@ -86,12 +86,12 @@ module.exports = async (req, res) => {
     const p = PERSONAGENS[b.personagem] ? b.personagem : '';
     if (b.acao === 'ideias') {
       const { texto } = await perguntar([
-        { role: 'system', content: 'Você é social media de humor do perfil @miadosdodestino (dorama com gatos que sabem demais: a frajola Naru, a escaminha Zelda que sente o perigo, o rajado Merlin que traz objetos, o siamês Spark misterioso; Yoo Nari, violinista doce; Sr. Baek, marido cheio de segredos que tranca o escritório). Crie 5 ideias de meme em imagem, engraçadas e compartilháveis, que conversem com o dia a dia de quem gosta de gato e de dorama. Nunca cite uma quinta gata. Responda SÓ com JSON: [{"formato":"ninguem|classico|comparacao|pov","cena":"descrição da imagem em português","topo":"texto de cima","baixo":"texto de baixo (pode ser vazio)"}]. Para "ninguem", topo é o que vem depois de "Ninguém:" (ex.: "A Naru às 3h da manhã:"). Para "comparacao", topo e baixo são os rótulos dos dois quadros.' },
+        { role: 'system', content: 'Você é social media de humor do perfil @miadosdodestino (dorama com gatos que sabem demais: a frajola Naru, a escaminha Zelda que sente o perigo, o rajado Merlin que traz objetos, o siamês Spark misterioso, a tricolor Milka, meiga, caseira, gulosa e grudada em quem ama; Yoo Nari, violinista doce; Sr. Baek, marido cheio de segredos que tranca o escritório). Crie 5 ideias de meme em imagem, engraçadas e compartilháveis, que conversem com o dia a dia de quem gosta de gato e de dorama. Responda SÓ com JSON: [{"formato":"ninguem|classico|comparacao|pov","cena":"descrição da imagem em português","topo":"texto de cima","baixo":"texto de baixo (pode ser vazio)"}]. Para "ninguem", topo é o que vem depois de "Ninguém:" (ex.: "A Naru às 3h da manhã:"). Para "comparacao", topo e baixo são os rótulos dos dois quadros.' },
         { role: 'user', content: 'Personagem principal: ' + (p ? PERSONAGENS[p] : 'qualquer um do elenco') }
       ], { temperatura: 0.95 });
       const m = texto.match(/\[[\s\S]*\]/);
       let ideias = []; try { ideias = JSON.parse(m ? m[0] : texto); } catch (e) {}
-      ideias = (Array.isArray(ideias) ? ideias : []).filter(x => x && x.cena && !/milka|quinta gata/i.test(JSON.stringify(x))).slice(0, 5)
+      ideias = (Array.isArray(ideias) ? ideias : []).filter(x => x && x.cena).slice(0, 5)
         .map(x => ({ formato: ['ninguem', 'classico', 'comparacao', 'pov'].includes(x.formato) ? x.formato : 'classico', cena: String(x.cena).slice(0, 300), topo: String(x.topo || '').slice(0, 120), baixo: String(x.baixo || '').slice(0, 120) }));
       if (!ideias.length) return res.status(502).json({ erro: 'A IA não mandou ideias desta vez. Tente de novo.' });
       return res.json({ ideias });
@@ -99,7 +99,6 @@ module.exports = async (req, res) => {
     if (b.acao === 'gerar') {
       const cena = String(b.cena || '').trim().slice(0, 500);
       if (!cena) return res.status(400).json({ erro: 'Descreva a cena da imagem' });
-      if (/milka|quinta gata|tricolor/i.test(cena)) return res.status(400).json({ erro: 'A quinta gata ainda é segredo 🤫' });
       const size = FORMATOS[b.formato] || FORMATOS.vertical;
       const prompt = await promptEmIngles(cena, p);
       // tenta cada gerador em ordem e avisa quando precisou cair para um mais simples

@@ -13,7 +13,7 @@ const GATOS = {
   merlin: 'Merlin, gato rajado cinza que mora no templo abandonado da colina. Sempre traz algo na boca (um sininho de bronze, uma chave de ferro) e espera que a pessoa entenda. Fala como um guia paciente.',
   zelda: 'Zelda, gata escaminha de olhos âmbar, sentinela no telhado do galpão. Pressente o perigo um segundo antes. Fala com calma estratégica e cuidado.',
   spark: 'Spark, siamês de olhos azuis cujo nome está numa fotografia antiga. Observa em silêncio e sabe mais do que mostra. Fala pouco, com mistério.',
-  milka: 'Milka, gata tricolor de olhos verdes que chegou numa noite de chuva e mudou tudo. Fala com coragem e recomeço.'
+  milka: 'Milka, gata tricolor de olhos verdes que chegou filhote numa noite de chuva. Meiga, caseira, gulosa e companheira: fala de colo, de casa, de comida quentinha e de ficar perto de quem a gente ama.'
 };
 const NOMES = { naru: 'Naru', merlin: 'Merlin', zelda: 'Zelda', spark: 'Spark', milka: 'Milka' };
 const RESERVA = [

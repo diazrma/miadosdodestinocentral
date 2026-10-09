@@ -152,7 +152,7 @@ function platDados(){let atual;try{atual=RDNUM;if(!atual&&!PLATB&&ME){PLATB=true
 function perFaixa(PR){if(RP.k=='sem'){const a=wk2d(PR.w);return[a,addD(a,6)]}if(RP.k=='ano')return[PR.y+'-01-01',PR.y+'-12-31'];return[mes+'-01',mes+'-31']}
 function platPer(a,b){const d=platDados()||{},f=l=>(l||[]).filter(v=>v.data&&v.data.slice(0,10)>=a&&v.data.slice(0,10)<=b),sm2=l=>({videos:l.length,visualizacoes:l.reduce((x,v)=>x+(+v.views||0),0),curtidas:l.reduce((x,v)=>x+(+v.curtidas||0),0),comentarios:l.reduce((x,v)=>x+(+v.comentarios||0),0),compart:l.reduce((x,v)=>x+(+v.compart||0),0)});const tt=f(d.tiktok?.videos),kw=f(d.kwai?.videos);return{tt,kw,rt:sm2(tt),rk:sm2(kw),carregando:PLATB&&!d.tiktok&&!d.kwai}}
 const vid=n=>n+(n==1?' vídeo':' vídeos');
-const semMk=t=>String(t||'').replace(/#?\bmilka\w*/gi,'').replace(/\s{2,}/g,' ').trim();
+const semMk=t=>String(t||'').trim();
 function platRel(PR){const[a,b]=perFaixa(PR),x=platPer(a,b),ig=PR.ps.reduce((s,p)=>s+V(p),0);if(x.carregando)return'<h2>Instagram, TikTok e Kwai</h2><p>Carregando os números do TikTok e do Kwai…</p>';
  const mI=PR.ps.length?ig/PR.ps.length:0,mT=x.rt.videos?x.rt.visualizacoes/x.rt.videos:0,mK=x.rk.videos?x.rk.visualizacoes/x.rk.videos:0,mx=Math.max(mI,mT,mK)||1;
  const card=(nome,c,v,sub,m)=>`<div style="--c:${c}"><small>${nome}</small><b>${N(v)}</b><span>${sub}</span><span>média de <b style="display:inline;font:inherit;font-weight:700">${N(m)}</b> por post</span><div class="bar"><i style="width:${Math.max(2,m/mx*100)}%"></i></div></div>`;
@@ -513,7 +513,7 @@ const RD_TT={PUBLISH_COMPLETE:'✅ Publicado no TikTok',SEND_TO_USER_INBOX:'📥
 const textos2=l=>(sm(l).split('\n').find(x=>x.trim())||'').slice(0,70);
 const RD_EST={fila:['⏳','Na fila'],postado:['✅','Postado'],ja_tinha:['☑️','Já estava lá'],pular:['⏭️','Pular']};
 let RDNUM=null;
-const sm=t=>String(t||'').replace(/#?\bmilka\w*/gi,'').replace(/\s{2,}/g,' ').trim(); // a Milka é segredo até o enigma
+const sm=t=>String(t||'').trim();
 
 async function rdNum(forcar){try{RDNUM=await api('/api/redes',{acao:'numeros',atualizar:!!forcar});if(forcar)aviso('Números atualizados.')}catch(e){RDNUM={tiktok:{erro:e.message},kwai:[]}}if(tab=='redes')render()}
 function rdOp(k,v){const c={...RD2.config,tt:{...(RD2.config?.tt||{}),[k]:v}};RD2.config=c;rdAcao({acao:'config',config:c})}
@@ -612,7 +612,7 @@ details.ax-sec summary{cursor:pointer}
 // ---------- 🎭 Estúdio de memes: imagem por IA grátis (Pollinations) + texto e marca montados aqui
 // o estúdio aparece para quem publica (não é um menu separado nos perfis de acesso)
 const podeVer=k=>k=='memes'?(ME.menus.includes('publicar')||ME.menus.includes('posts')):k=='redes'?ME.menus.includes('publicar'):ME.menus.includes(k);
-const MM_PERS=[['','Sem personagem'],['naru','Naru'],['zelda','Zelda'],['merlin','Merlin'],['spark','Spark'],['yoonari','Yoo Nari'],['baek','Sr. Baek']];
+const MM_PERS=[['','Sem personagem'],['naru','Naru'],['zelda','Zelda'],['merlin','Merlin'],['spark','Spark'],['milka','Milka'],['yoonari','Yoo Nari'],['baek','Sr. Baek']];
 const MM_FMT={ninguem:['😐','Ninguém:'],classico:['🔠','Clássico'],comparacao:['⚖️','Comparação'],pov:['👀','POV']};
 let MM={enviadas:[],fmt:'ninguem',pers:'naru',cena:'',cena2:'',topo:'',baixo:'',tam:'vertical',imgs:[],imgs2:[],sel:0,sel2:0,busy:'',ideias:[],chave:null,erro:''};
 async function mmStatus(){try{const d=await api('/api/meme',{acao:'status'});MM.chave=d.chave;MM.modelo=d.modelo||''}catch(e){MM.chave=false}if(tab=='memes')render()}
