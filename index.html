@@ -496,6 +496,26 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 .ax-cfoto{position:relative;cursor:pointer;width:110px;height:110px;border-radius:50%;overflow:hidden;background:var(--bd);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px var(--gd)}
 .ax-cfoto img{width:100%;height:100%;object-fit:cover}.ax-cfoto span{font:700 46px "Cormorant Garamond",serif;color:var(--gd)}.ax-cfoto em{position:absolute;left:0;right:0;bottom:0;font-style:normal;font-size:11px;text-align:center;background:rgba(0,0,0,.55);color:#fff;padding:4px 0}
 .ax-sush{display:flex;gap:14px;align-items:center;padding:14px;border:1px solid var(--gd);border-radius:14px;background:var(--bg)}.ax-sush img{width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid #9c1b22}.ax-sush small{color:var(--mut)}.ax-sush p{margin:4px 0 0;font:italic 600 20px/1.3 "Cormorant Garamond",serif}
+.ax-tabs{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px!important;padding:6px!important;overflow:visible!important}
+.ax-tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:10px 6px!important;border-radius:12px!important;min-height:62px;line-height:1.15;text-align:center;white-space:normal!important}
+.ax-tabs button i{font-style:normal;font-size:20px;line-height:1}.ax-tabs button span{font-size:12px;font-weight:700}
+.ax-tabs button:not(.on){background:var(--bg)!important;border:1px solid transparent!important}.ax-tabs button:not(.on):hover{border-color:var(--gd)!important}
+.ax-topd{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ax-pvbtn{display:none}
+.ax-pvm{position:fixed;inset:0;z-index:95;background:rgba(10,8,5,.82);backdrop-filter:blur(4px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+.ax-pvm-c{transform:scale(var(--k,.92));transform-origin:center}.ax-pvm-x{background:var(--cd);border-radius:999px;padding:10px 18px;font-weight:600}
+@media(max-height:760px){.ax-pvm-c{--k:.78}}@media(max-height:640px){.ax-pvm-c{--k:.66}}
+@media(max-width:900px){.ax-pvbtn{display:inline-flex;align-items:center;gap:6px;border-color:var(--gd);font-weight:600}}
+@media(max-width:700px){
+ .ax-tabs{grid-template-columns:repeat(3,1fr)}.ax-tabs button{min-height:58px;padding:8px 4px!important}.ax-tabs button span{font-size:11px}
+ .ax-top{margin-bottom:10px}.ax-topd{width:100%;justify-content:space-between}
+ .ax-vd{grid-template-columns:96px minmax(0,1fr)!important;gap:10px}.ax-yt{border-radius:8px}
+ .ax-el{grid-template-columns:46px minmax(0,1fr)!important}.ax-el>.ax-yt,.ax-el>.ax-pill{grid-column:2;justify-self:start;width:110px}
+ .ax-cf{grid-template-columns:84px minmax(0,1fr)}.ax-cfoto{width:84px;height:84px}
+ .ax-pp{grid-template-columns:1fr}.ax-dest{grid-template-columns:1fr 1fr!important}
+ .ax-sec input,.ax-sec textarea,.ax-sec select{font-size:16px}
+ .ax-bar{flex-direction:column;align-items:stretch;gap:8px}.ax-bar .bt{display:grid;grid-template-columns:1fr 2fr}
+ main{padding:12px}header{padding:10px 12px}header>img{height:46px}}
 .ax-sus{display:grid;grid-template-columns:28px 110px minmax(0,1fr) 32px;gap:8px;align-items:center;margin-bottom:8px}@media(max-width:600px){.ax-sus{grid-template-columns:28px 1fr 32px}.ax-sus input{grid-column:1/-1;grid-row:2}}
 </style>`);
 const esc2=v=>esc(v??'');
@@ -510,8 +530,8 @@ function appPainel(){
  const quando=AP.atualizado?new Date(AP.atualizado).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'})+(AP.por?' por '+esc(AP.por):''):'ainda sem alterações';
  const editavel=!['notif','aparelhos'].includes(APT);if(!S.team.length&&APT=='creditos')refresh().then(render).catch(()=>{});
  return `<div class="ax-top"><div><h2>App Miados do Destino</h2><p>Gerencie o que aparece no app e envie notificações.</p></div>
-  <span class="ax-st${APSUJO?' suj':''}" id="ax-st"><i></i>${APSUJO?'Alterações não salvas':'No ar · '+quando}</span></div>
- <div class="ax-tabs">${tabs.map(([k,l])=>`<button class="${APT==k?'on':''}" onclick="apSalvaTela();APT='${k}';render()">${l}</button>`).join('')}</div>
+  <div class="ax-topd"><span class="ax-st${APSUJO?' suj':''}" id="ax-st"><i></i>${APSUJO?'Alterações não salvas':'No ar · '+quando}</span><button class="ax-pvbtn" id="ax-pvbtn" onclick="apPrevMobile()">📱 Ver no celular</button></div></div>
+ <div class="ax-tabs">${tabs.map(([k,l])=>{const i=l.indexOf(' ');return `<button class="${APT==k?'on':''}" onclick="apSalvaTela();APT='${k}';render();document.querySelector('.ax-tabs').scrollIntoView({block:'nearest'})"><i>${l.slice(0,i)}</i><span>${l.slice(i+1)}</span></button>`}).join('')}</div>
  <div class="ax"><div>${({gazeta:apGazeta,videos:apVideos,temporada:apTemporada,papeis:apPapeis,sussurros:apSussurros,enigma:apEnigma,post:apPost,creditos:apCreditos,recursos:apRecursos,notif:apNotif,aparelhos:apAparelhos})[APT]()}
   ${editavel?`<div class="ax-bar" id="ax-bar" style="display:${APSUJO?'flex':'none'}"><span>Você tem alterações não salvas.</span><div class="bt"><button onclick="apDescarta()">Descartar</button><button class="pr" id="ap-sv" onclick="apSalva()">Salvar e publicar no app</button></div></div>`:''}</div>
   <div class="ax-pv"><div class="lb">${APT=='notif'?'Prévia da notificação':'Prévia no app'}</div><div id="ax-prev">${apPreviaHtml()}</div></div></div>`}
@@ -568,6 +588,8 @@ function apPreviaHtml(){
  return `<div class="cel-pv"><div class="sc"><div class="tp"><span>${esc2(g.edicao)}</span><span>Temporada 1</span></div><div class="ms"><b>Gazeta do Destino</b><i>Todas as notícias de Miados do Destino</i></div>
   <div class="bd"><div class="k">${esc2(m.kicker)}</div><h4>${esc2(m.titulo)}</h4><div class="ln">${esc2(m.linha)}</div>${m.img?`<img class="im" src="${esc2(m.img)}" alt="">`:''}<div class="tx">${esc2(m.texto).split('\n').filter(Boolean).map(p=>`<p style="margin:0 0 4px">${p}</p>`).join('')}</div>
   ${g.materias.slice(0,2).map(x=>`<div class="st"><div class="k">${esc2(x.kicker)}</div><h5>${esc2(x.titulo)}</h5><p>${esc2(x.texto)}</p></div>`).join('')}</div>${nav('Gazeta')}</div></div>`}
+// no celular a prévia não cabe ao lado: abre por cima, em tela cheia
+function apPrevMobile(){apSalvaTela();const d=document.createElement('div');d.className='ax-pvm';d.innerHTML=`<div class="ax-pvm-c">${apPreviaHtml()}</div><button class="ax-pvm-x" aria-label="Fechar">✕ Fechar prévia</button>`;d.onclick=e=>{if(e.target==d||e.target.classList.contains('ax-pvm-x'))d.remove()};document.body.append(d)}
 function apPrevia(){const e=$('#ax-prev');if(e)e.innerHTML=apPreviaHtml()}
 function apSalvaTela(){if(!AP)return;const v=id=>{const e=$('#'+id);return e?e.value:null};const g=AP.gazeta;
  if($('#am-t')){g.edicao=v('ag-ed');Object.assign(g.manchete,{kicker:v('am-k'),titulo:v('am-t'),linha:v('am-s'),texto:v('am-x'),img:v('am-i'),legenda:v('am-l')});g.materias=g.materias.map((x,i)=>$('#mt-t'+i)?{kicker:v('mt-k'+i),titulo:v('mt-t'+i),texto:v('mt-x'+i),link:v('mt-l'+i),linkTxt:v('mt-lt'+i)}:x)}
