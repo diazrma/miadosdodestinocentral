@@ -1,0 +1,83 @@
+// Backup da Central: dados do banco (só as chaves da Central), criptografados com BACKUP_KEY.
+// As variáveis secretas da Vercel NÃO entram: só a lista de quais existiam, para saber o que recadastrar.
+// GET  (Vercel Cron, Bearer CRON_SECRET)            -> salva uma cópia no Blob (backups/) e mantém as 14 últimas
+// GET  ?baixar=1 com header x-backup-key            -> devolve a cópia na hora (o agendador do computador usa isso)
+// POST { acao: 'restaurar', backup } + x-backup-key -> grava os dados de volta no banco
+// POST { acao: 'arquivos' } (administrador logado)   -> lista o que existe no Blob
+const crypto = require('crypto');
+const { put, list, del } = require('@vercel/blob');
+const { rd, PFX, auth } = require('../lib/db');
+const { cred } = require('../lib/blob');
+
+// variáveis que a Central usa (só os nomes vão para o backup)
+const VARS = ['KV_REST_API_URL', 'KV_REST_API_TOKEN', 'KV_REST_API_READ_ONLY_TOKEN', 'KV_URL', 'REDIS_URL', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
+  'SESSION_SECRET', 'CRON_SECRET', 'BACKUP_KEY', 'DB_PREFIX', 'BLOB_STORE_ID', 'BLOB_READ_WRITE_TOKEN', 'IG_TOKEN', 'FCM_SERVICE_ACCOUNT', 'GROQ_API_KEY', 'GROQ_MODEL',
+  'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'POLLINATIONS_KEY', 'TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_PROD_CLIENT_KEY', 'TIKTOK_PROD_CLIENT_SECRET'];
+const MANTER = 14;
+
+const chave = () => crypto.createHash('sha256').update(process.env.BACKUP_KEY || '').digest();
+const igual = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from(String(b || '')); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+const temChave = req => !!process.env.BACKUP_KEY && igual(req.headers['x-backup-key'], process.env.BACKUP_KEY);
+
+function cifrar(obj) {
+  const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', chave(), iv);
+  const dados = Buffer.concat([c.update(JSON.stringify(obj)), c.final()]);
+  return { v: 1, alg: 'aes-256-gcm', iv: iv.toString('base64'), tag: c.getAuthTag().toString('base64'), dados: dados.toString('base64') };
+}
+function decifrar(b) {
+  const d = crypto.createDecipheriv('aes-256-gcm', chave(), Buffer.from(b.iv, 'base64'));
+  d.setAuthTag(Buffer.from(b.tag, 'base64'));
+  return JSON.parse(Buffer.concat([d.update(Buffer.from(b.dados, 'base64')), d.final()]).toString());
+}
+
+async function montar() {
+  const nomes = [];
+  let cur = '0';
+  do { const [c, ks] = await rd(['SCAN', cur, 'MATCH', PFX + '*', 'COUNT', '500']); cur = c; nomes.push(...ks); } while (cur !== '0');
+  const vals = nomes.length ? await rd(['MGET', ...nomes]) : [];
+  const dados = Object.fromEntries(nomes.map((k, i) => [k.slice(PFX.length), vals[i]]));
+  const variaveis = VARS.filter(k => process.env[k] != null);
+  return { em: new Date().toISOString(), prefixo: PFX, chaves: nomes.length, dados, variaveis };
+}
+
+async function salvarNoBlob(req) {
+  const b = await montar(), c = cred(req);
+  const r = await put(`backups/central-${b.em.slice(0, 10)}.json`, JSON.stringify({ ...cifrar(b), em: b.em, chaves: b.chaves }),
+    { access: 'public', contentType: 'application/json', addRandomSuffix: true, ...c });
+  const { blobs } = await list({ prefix: 'backups/', limit: 1000, ...c });
+  const velhos = blobs.sort((x, y) => new Date(y.uploadedAt) - new Date(x.uploadedAt)).slice(MANTER).map(x => x.url);
+  if (velhos.length) await del(velhos, c).catch(() => {});
+  return { ok: 1, em: b.em, chaves: b.chaves, variaveis: b.variaveis.length, arquivo: r.pathname, apagados: velhos.length };
+}
+
+module.exports = async (req, res) => {
+  try {
+    if (!process.env.BACKUP_KEY) return res.status(500).json({ erro: 'BACKUP_KEY não configurado na Vercel' });
+    if (req.method === 'GET') {
+      if (req.query?.baixar) {
+        if (!temChave(req)) return res.status(401).json({ erro: 'Não autorizado' });
+        const b = await montar();
+        return res.json({ ...cifrar(b), em: b.em, chaves: b.chaves });
+      }
+      const seg = process.env.CRON_SECRET;
+      if (!seg || req.headers.authorization !== 'Bearer ' + seg) return res.status(401).json({ erro: 'Não autorizado' });
+      return res.json(await salvarNoBlob(req));
+    }
+    const b = req.body || {};
+    if (b.acao === 'restaurar') {
+      if (!temChave(req)) return res.status(401).json({ erro: 'Não autorizado' });
+      const d = decifrar(b.backup || {});
+      const pares = Object.entries(d.dados || {}).filter(([, v]) => v != null);
+      for (let i = 0; i < pares.length; i += 50) await rd(['MSET', ...pares.slice(i, i + 50).flatMap(([k, v]) => [PFX + k, v])]);
+      return res.json({ ok: 1, restauradas: pares.length, de: d.em });
+    }
+    const a = await auth(req);
+    if (!a || !a.role?.admin) return res.status(403).json({ erro: 'Só administradores' });
+    if (b.acao === 'arquivos') {
+      const { blobs } = await list({ limit: 1000, ...cred(req) });
+      return res.json({ arquivos: blobs.map(x => ({ caminho: x.pathname, tamanho: x.size, em: x.uploadedAt, url: x.url })) });
+    }
+    if (b.acao === 'agora') return res.json(await salvarNoBlob(req));
+    res.status(400).json({ erro: 'Ação inválida' });
+  } catch (e) { res.status(500).json({ erro: e.message }); }
+};
