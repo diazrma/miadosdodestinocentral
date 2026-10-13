@@ -1,9 +1,10 @@
 const { auth, dbGet, dbSet } = require('../lib/db');
+const { igToken } = require('../lib/ig');
 const G = 'https://graph.instagram.com';
 const TIPO = { IMAGE: 'Foto', VIDEO: 'Vídeo', CAROUSEL_ALBUM: 'Carrossel' };
 async function get(p, q = {}) {
   const u = new URL(G + p);
-  Object.entries({ ...q, access_token: process.env.IG_TOKEN }).forEach(([k, v]) => u.searchParams.set(k, v));
+  Object.entries({ ...q, access_token: await igToken() }).forEach(([k, v]) => u.searchParams.set(k, v));
   const j = await (await fetch(u)).json();
   if (j.error) throw new Error(j.error.message);
   return j;
@@ -30,7 +31,7 @@ async function ins(id) {
 }
 module.exports = async (req, res) => {
   if (!(await auth(req))) return res.status(401).json({ erro: 'Faça login' });
-  if (!process.env.IG_TOKEN) return res.status(500).json({ erro: 'IG_TOKEN não configurado na Vercel' });
+  if (!(await igToken())) return res.status(500).json({ erro: 'Instagram não conectado: na aba Dados, clique em Conectar Instagram' });
   try {
     const c = await dbGet('cache').catch(() => null);
     // ?cache=1: devolve a última cópia na hora, mesmo antiga (a Central abre com ela e atualiza por trás)

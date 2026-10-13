@@ -43,6 +43,10 @@
   ],
   "rewrites": [
     {
+      "source": "/instagram/retorno",
+      "destination": "/api/instagram?retorno=1"
+    },
+    {
       "source": "/tiktok/retorno",
       "destination": "/api/redes?acao=tiktok_retorno"
     },

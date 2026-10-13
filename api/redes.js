@@ -22,6 +22,7 @@
 //      { acao: 'tiktok_sair' }
 const crypto = require('crypto');
 const { auth, dbGet, dbSet } = require('../lib/db');
+const { igToken } = require('../lib/ig');
 const { enviarPush } = require('../lib/fcm');
 
 const CENTRAL = 'https://miadosdodestinocentral.vercel.app';
@@ -56,7 +57,7 @@ function parecido(a, b) {
 // ---------------------------------------------------------------- Instagram
 async function igGet(path, q = {}) {
   const u = new URL(IG + path);
-  Object.entries({ ...q, access_token: process.env.IG_TOKEN }).forEach(([k, v]) => u.searchParams.set(k, v));
+  Object.entries({ ...q, access_token: await igToken() }).forEach(([k, v]) => u.searchParams.set(k, v));
   const j = await (await fetch(u)).json();
   if (j.error) throw new Error('Instagram: ' + j.error.message);
   return j;

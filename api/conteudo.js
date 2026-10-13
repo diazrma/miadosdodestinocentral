@@ -7,6 +7,7 @@
 //      { acao: 'aparelhos' } / { acao: 'historico' } listas para o painel
 // POST /api/conteudo { acao: 'registrar', token, nome } -> público: o app registra o aparelho para testes
 const { auth, dbGet, dbSet } = require('../lib/db');
+const { igToken } = require('../lib/ig');
 const { enviarPush } = require('../lib/fcm');
 
 const SITE = 'https://miados-do-destino.vercel.app';
@@ -74,12 +75,13 @@ async function creditosPublicos(cr) {
 async function ultimoPost() {
   const c = await dbGet('postdia_cache').catch(() => null);
   if (c && Date.now() - c.t < 3 * 3600e3) return c.d;
-  if (!process.env.IG_TOKEN) return c ? c.d : null;
+  const tok = await igToken();
+  if (!tok) return c ? c.d : null;
   try {
     const u = new URL('https://graph.instagram.com/me/media');
     u.searchParams.set('fields', 'id,caption,media_type,timestamp,permalink,thumbnail_url,media_url,like_count,comments_count');
     u.searchParams.set('limit', '6');
-    u.searchParams.set('access_token', process.env.IG_TOKEN);
+    u.searchParams.set('access_token', tok);
     const j = await (await fetch(u)).json();
     if (j.error) throw new Error(j.error.message);
     const d = (j.data || []).map(m => ({

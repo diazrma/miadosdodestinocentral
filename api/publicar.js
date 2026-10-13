@@ -2,12 +2,13 @@ const { randomUUID } = require('crypto');
 const { del } = require('@vercel/blob');
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
+const { igToken } = require('../lib/ig');
 const G = 'https://graph.instagram.com';
 const BLOB = u => /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i.test(String(u || ''));
 function amigavel(e) {
   const m = e.error_user_msg || e.message || '', c = e.code;
-  if (c === 190) return 'O token do Instagram expirou ou é inválido. Gere um novo IG_TOKEN na Meta.';
-  if (c === 10 || c === 200 || /permission/i.test(m)) return 'O IG_TOKEN não tem permissão de publicação (instagram_business_content_publish). Gere um token novo com essa permissão.';
+  if (c === 190) return 'O token do Instagram expirou ou é inválido. Conecte o Instagram de novo na aba Dados.';
+  if (c === 10 || c === 200 || /permission/i.test(m)) return 'A conexão do Instagram não tem permissão de publicação. Conecte o Instagram de novo na aba Dados e autorize publicar.';
   if (c === 4 || c === 9 || /limit/i.test(m)) return 'Limite de publicações do Instagram atingido. Tente de novo mais tarde.';
   if (/aspect ratio/i.test(m)) return 'Proporção não aceita pelo Instagram. Use entre 4:5 (vertical) e 1.91:1 (horizontal).';
   if (/format|media type|unsupported|codec/i.test(m)) return 'Formato não aceito pelo Instagram. Use JPG para fotos e MP4/MOV (H.264) para vídeos.';
@@ -16,7 +17,7 @@ function amigavel(e) {
   return 'Instagram: ' + m;
 }
 async function ig(p, q = {}, post) {
-  const b = new URLSearchParams({ ...q, access_token: process.env.IG_TOKEN });
+  const b = new URLSearchParams({ ...q, access_token: await igToken() });
   const r = await fetch(G + p + (post ? '' : '?' + b), post ? { method: 'POST', body: b } : {});
   const j = await r.json();
   if (j.error) throw new Error(amigavel(j.error));
@@ -46,7 +47,7 @@ module.exports = async (req, res) => {
       return res.json({ ok: 1 });
     }
     if (b.acao === 'limpar') { await limpar(C, b.urls); return res.json({ ok: 1 }); }
-    if (!process.env.IG_TOKEN) return no(500, 'IG_TOKEN não configurado na Vercel');
+    if (!(await igToken())) return no(500, 'Instagram não conectado: na aba Dados, clique em Conectar Instagram');
     if (b.acao === 'item') {
       if (!BLOB(b.url)) return no(400, 'Arquivo inválido');
       const q = b.carrossel ? { is_carousel_item: 'true' } : { caption: leg(b.legenda) };
