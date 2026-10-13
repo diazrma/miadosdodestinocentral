@@ -8,6 +8,17 @@ async function get(p, q = {}) {
   if (j.error) throw new Error(j.error.message);
   return j;
 }
+// seguidores por país (o Instagram só libera com 100+ seguidores; versões antigas da API pedem timeframe)
+async function paises() {
+  for (const extra of [{}, { timeframe: 'this_month' }]) {
+    try {
+      const j = await get('/me/insights', { metric: 'follower_demographics', period: 'lifetime', metric_type: 'total_value', breakdown: 'country', ...extra });
+      const r = j.data?.[0]?.total_value?.breakdowns?.[0]?.results || [];
+      return r.map(x => ({ pais: x.dimension_values[0], n: x.value })).sort((a, b) => b.n - a.n);
+    } catch (e) {}
+  }
+  return null;
+}
 async function ins(id) {
   for (const m of ['views,reach,saved,shares', 'reach,saved,shares', 'reach']) {
     try {
@@ -55,7 +66,7 @@ module.exports = async (req, res) => {
         if (r) ns[a.toISOString().slice(0, 7)] = r.value;
       } catch (e) {}
     }
-    const out = { perfil: me.username, seguidores: me.followers_count, posts, ns };
+    const out = { perfil: me.username, seguidores: me.followers_count, posts, ns, paises: await paises() };
     await dbSet('cache', { t: Date.now(), d: out }).catch(() => {});
     res.json(out);
   } catch (e) { res.status(500).json({ erro: e.message }); }
