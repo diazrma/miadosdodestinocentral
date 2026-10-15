@@ -87,7 +87,7 @@ test('fluxo completo: comentário → abertura → só para quem segue → link 
   assert.equal(IGS.publicas[0], 'Te mandei no direct, ana.gatos! 💌');
   let m = ultimo();
   assert.deepEqual(m.recipient, { comment_id: 'c1' });
-  assert.equal(m.message.attachment.payload.buttons[0].payload, 'g:link');
+  assert.equal(m.message.quick_replies[0].payload, 'g:link');
   assert.deepEqual((await dbGet('ct:u1')).espera, { auto: 'link', i: 0, livre: 1, gate: 1 });
   // mesma pessoa no mesmo post não dispara de novo
   await B.processar(comentario('c2', 'u1', 'episodio'));
@@ -100,9 +100,9 @@ test('fluxo completo: comentário → abertura → só para quem segue → link 
   await dbSet('ct:u1', { ...(await dbGet('ct:u1')), pf: 0 });
   await B.processar(postback('u1', 'g:link'));
   const n = IGS.enviados.length;
-  const btn = IGS.enviados[n - 2].message.attachment.payload.buttons[0];
-  assert.match(btn.url, /^https:\/\/central\.test\/api\/webhook\?r=/);
-  assert.equal(IGS.enviados[n - 2].message.attachment.payload.text, 'Aqui está, Ana!');
+  const msgLink = IGS.enviados[n - 2].message.text, curta = msgLink.match(/https:\/\/central\.test\/l\/(\S+)/);
+  assert.ok(msgLink.startsWith('Aqui está, Ana!\n\nAssistir: https://central.test/l/'), msgLink);
+  assert.ok(!IGS.enviados[n - 2].message.attachment);
   assert.equal(txt(IGS.enviados[n - 1]), 'Qual seu e-mail?');
   // e-mail inválido → pede de novo; válido → salva, aplica tag e agenda
   await B.processar(dm('u1', { text: 'não sei' }));
@@ -121,10 +121,10 @@ test('fluxo completo: comentário → abertura → só para quem segue → link 
   const st = hst('st:link');
   assert.deepEqual([st.disparos, st.abertos, st.leads, st.concluidos], [1, 2, 1, 1]);
   // clique no link rastreado → 302 e conta clique
-  const r = await chama({ method: 'GET', query: { r: new URL(btn.url).searchParams.get('r') } });
+  const r = await chama({ method: 'GET', query: { l: curta[1] } });
   assert.equal(r.code, 302); assert.equal(r.headers.Location, 'https://youtu.be/abc');
   assert.equal(hst('st:link').cliques, 1);
-  assert.equal((await chama({ method: 'GET', query: { r: 'abc.def' } })).code, 400);
+  assert.equal((await chama({ method: 'GET', query: { l: 'naoexiste.u1' } })).code, 404);
 });
 
 test('abertura: responder qualquer coisa continua o fluxo (botão não aparece no Instagram web)', async () => {
@@ -181,7 +181,7 @@ test('boas-vindas na primeira mensagem, menção no story e fallback sem botão'
   IGS.falhaTemplate = true;
   await B.processar(dm('u4', { attachments: [{ type: 'story_mention', payload: { url: 'x' } }] }));
   IGS.falhaTemplate = false;
-  assert.equal(txt(ultimo()), 'Obrigada pela menção!\nSite: https://miados.test');
+  assert.equal(txt(ultimo()), 'Obrigada pela menção!\n\nSite: https://miados.test');
 });
 
 test('simulador não envia nada e mostra o fluxo', async () => {

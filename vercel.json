@@ -63,6 +63,10 @@
     {
       "source": "/midia/:arquivo",
       "destination": "/api/redes?arquivo=:arquivo"
+    },
+    {
+      "source": "/l/:k",
+      "destination": "/api/webhook?l=:k"
     }
   ]
 }

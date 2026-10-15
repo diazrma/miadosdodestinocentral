@@ -25,6 +25,12 @@ module.exports = async (req, res) => {
       await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {})]);
       res.setHeader('Location', o.u); return res.status(302).end();
     }
+    if (q.l) {
+      const o = await B.abreCurto(q.l);
+      if (!o) return res.status(404).send('Link não encontrado');
+      await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {})]);
+      res.setHeader('Location', o.u); return res.status(302).end();
+    }
     if (q.tick) return res.json({ ok: 1, n: await B.tick() });
     if (req.method === 'GET') {
       if (q['hub.mode'] !== 'subscribe') return res.status(200).send('ok');
