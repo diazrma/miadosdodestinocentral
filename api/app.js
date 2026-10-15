@@ -11,13 +11,19 @@ module.exports = async (req, res) => {
     const can = m => a.menus.includes(m), isAdmin = !!a.role?.admin, roleOf = id => (st.roles || []).find(r => r.id === id);
     // uma vez só: a Ana Paula passa a ser quem posta por padrão (pedido da direção, 09/10/2026); depois vale o que for escolhido no Painel
     if (req.method === 'GET' && !st.padraoAna && padraoAna(us)) { st.padrao = padraoAna(us); st.padraoAna = 1; await dbSet('state', st); }
-    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || padraoAna(us) } });
+    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || padraoAna(us), menu: st.menu || null } });
     const no = (c, m) => res.status(c).json({ erro: m });
     if (b.acao === 'salvar_estado') {
       if (!['posts', 'dados', 'relatorio', 'equipe'].some(can)) return no(403, 'Sem permissão');
       const e = b.estado || {};
       Object.assign(st, { resp: e.resp || {}, notes: e.notes || {}, seg: e.seg || {}, last: e.last || '', padrao: String(e.padrao || st.padrao || '') });
       await dbSet('state', st); return res.json({ ok: 1 });
+    }
+    // ordem do menu e seções, arrumadas pelo administrador (vale para todos; cada um continua vendo só as abas liberadas)
+    if (b.acao === 'salvar_menu') {
+      if (!isAdmin) return no(403, 'Só administradores organizam o menu');
+      const m = (Array.isArray(b.menu) ? b.menu : []).slice(0, 12).map(g => ({ nome: String(g?.nome || '').slice(0, 30), abas: (Array.isArray(g?.abas) ? g.abas : []).filter(k => /^[a-z]{2,20}$/.test(k)).slice(0, 30) })).filter(g => g.abas.length);
+      st.menu = m.length ? m : null; await dbSet('state', st); return res.json({ ok: 1 });
     }
     if (b.acao === 'salvar_padrao') {
       if (!['equipe', 'posts', 'publicar'].some(can)) return no(403, 'Sem permissão');

@@ -53,9 +53,10 @@ module.exports = async (req, res) => {
       posts.push(...await Promise.all(items.slice(i, i + 10).map(async m => {
         const v = antes.get(m.id), velho = m.timestamp.slice(0, 10) < corte;
         const s = v && velho ? { reach: v.alc, views: v.vis, saved: v.sal, shares: v.comp } : await ins(m.id);
-        return { id: m.id, data: m.timestamp.slice(0, 10), tipo: m.media_product_type === 'REELS' ? 'Reels' : TIPO[m.media_type] || 'Foto',
+        // dia: data no horário de Brasília (o cronograma cruza por ela); data segue em UTC como antes
+        return { id: m.id, data: m.timestamp.slice(0, 10), dia: new Date(Date.parse(m.timestamp) - 3 * 36e5).toISOString().slice(0, 10), tipo: m.media_product_type === 'REELS' ? 'Reels' : TIPO[m.media_type] || 'Foto',
           alc: s.reach || 0, vis: s.views || s.reach || 0, cur: m.like_count || 0, com: m.comments_count || 0, sal: s.saved || 0, comp: s.shares || 0,
-          leg: (m.caption || '').split('\n')[0].slice(0, 80), link: m.permalink, img: m.thumbnail_url || m.media_url || '' };
+          leg: (m.caption || '').split('\n')[0].slice(0, 80), cap: (m.caption || '').slice(0, 600), link: m.permalink, img: m.thumbnail_url || m.media_url || '' };
       })));
     }
     const ns = {}, now = new Date();
