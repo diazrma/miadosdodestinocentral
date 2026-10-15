@@ -31,3 +31,16 @@ PUBLICAR NO INSTAGRAM (aba "📤 Publicar")
 - "Quem posta por padrao" e escolhido no Painel; cada publicacao ja vem com essa pessoa (pode trocar).
 - Os arquivos ficam no Blob so ate publicar; depois sao apagados.
 - Limite do Instagram: cerca de 50 publicacoes pela API a cada 24 h.
+
+AUTOMACOES DE DIRECT E COMENTARIOS (abas "🤖 Automações", "💬 Conversas" e "👥 Contatos")
+1. Aba Dados: clicar em "Conectar Instagram" de novo e aceitar as permissoes novas (mensagens e comentarios).
+2. App da Meta: adicionar instagram_business_manage_messages e instagram_business_manage_comments
+   (App em modo Live com Acesso Avancado para funcionar com qualquer pessoa, nao so testadores).
+3. App da Meta > Instagram > Webhooks: URL e token de verificacao aparecem na aba Automacoes ("Como ligar na Meta").
+   Assinar: comments, messages, messaging_postbacks, messaging_seen. Depois, na aba Automacoes: "Ativar recebimento".
+4. Celular: Instagram > Configuracoes > Mensagens > Ferramentas conectadas > permitir acesso as mensagens.
+5. Em Acessos, marcar as abas novas nos perfis (Administrador ja ve).
+6. Automacoes > Configuracoes > Salvar uma vez (grava o endereco do site para os links rastreados).
+- Regra do Instagram: automacao so manda mensagem para quem falou com o perfil nas ultimas 24 h.
+- Os passos "Esperar" saem pelo cron a cada 5 min (/api/webhook?tick=1).
+- Testes: node --test test/*.test.js

@@ -17,6 +17,12 @@
     },
     "api/backup.js": {
       "maxDuration": 60
+    },
+    "api/webhook.js": {
+      "maxDuration": 60
+    },
+    "api/bot.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -39,6 +45,10 @@
     {
       "path": "/api/backup",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/webhook?tick=1",
+      "schedule": "*/5 * * * *"
     }
   ],
   "rewrites": [

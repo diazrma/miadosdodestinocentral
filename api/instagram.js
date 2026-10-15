@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { auth, dbGet, dbSet } = require('../lib/db');
 const CENTRAL = 'https://miadosdodestinocentral.vercel.app';
 const REDIRECT = CENTRAL + '/instagram/retorno';
-const ESCOPOS = 'instagram_business_basic,instagram_business_manage_insights,instagram_business_content_publish';
+const ESCOPOS = 'instagram_business_basic,instagram_business_manage_insights,instagram_business_content_publish,instagram_business_manage_messages,instagram_business_manage_comments';
 
 module.exports = async (req, res) => {
   try {
