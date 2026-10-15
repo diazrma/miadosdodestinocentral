@@ -345,7 +345,7 @@ module.exports = async (req, res) => {
       const c = await dbGet('tiktok_conta');
       if (c && await conferirStatus(r, await ttConta(r).catch(() => null)).catch(() => 0)) await gravar(r);
       return res.json({ fila: r.ordem.map(id => r.itens[id]).filter(Boolean), config: r.config || {}, aguardando: !!r.aguardando, log: (r.log || []).slice().reverse(), atualizado: r.atualizado || null,
-        tiktok: c ? { nome: c.nome || '', usuario: c.usuario || '', escopos: c.escopos || '', privacidades: c.privacidades || [] } : null,
+        tiktok: c ? { nome: c.nome || '', usuario: c.usuario || '', escopos: c.escopos || '', privacidades: c.privacidades || [], chaves: c.chaves || 'teste' } : null,
         app: !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET), definitiva: !!(chaves('definitiva').key && chaves('definitiva').secret), liberado: !!r.liberado, verificacao: ((await dbGet('tiktok_verificacao')) || {}).nome || '' });
     }
     if (b.acao === 'atualizar') { const o = await atualizar(r); await gravar(r); return res.json(o); }
