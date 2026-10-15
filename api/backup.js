@@ -30,14 +30,46 @@ function decifrar(b) {
   return JSON.parse(Buffer.concat([d.update(Buffer.from(b.dados, 'base64')), d.final()]).toString());
 }
 
+// várias chamadas ao Redis numa requisição só (Upstash /pipeline)
+async function pipe(cmds) {
+  const out = [];
+  for (let i = 0; i < cmds.length; i += 200) {
+    const r = await fetch((process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) + '/pipeline', { method: 'POST', headers: { Authorization: 'Bearer ' + (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN) }, body: JSON.stringify(cmds.slice(i, i + 200)) });
+    out.push(...(await r.json()).map(x => x.result));
+  }
+  return out;
+}
+// chaves temporárias das automações (deduplicação de eventos etc.) não entram
+const TEMP = /^(ev:|sent:|asn:|tick:)/;
 async function montar() {
   const nomes = [];
   let cur = '0';
-  do { const [c, ks] = await rd(['SCAN', cur, 'MATCH', PFX + '*', 'COUNT', '500']); cur = c; nomes.push(...ks); } while (cur !== '0');
-  const vals = nomes.length ? await rd(['MGET', ...nomes]) : [];
-  const dados = Object.fromEntries(nomes.map((k, i) => [k.slice(PFX.length), vals[i]]));
+  do { const [c, ks] = await rd(['SCAN', cur, 'MATCH', PFX + '*', 'COUNT', '500']); cur = c; nomes.push(...ks.filter(k => !TEMP.test(k.slice(PFX.length)))); } while (cur !== '0');
+  const vals = [];
+  for (let i = 0; i < nomes.length; i += 500) vals.push(...await rd(['MGET', ...nomes.slice(i, i + 500)]));
+  const dados = {}, outros = [];
+  nomes.forEach((k, i) => vals[i] != null ? dados[k.slice(PFX.length)] = vals[i] : outros.push(k));
+  // listas (conversas, avisos), conjuntos ordenados (contatos, fila) e hashes (números) das automações
+  const tipos = await pipe(outros.map(k => ['TYPE', k])), LER = { list: k => ['LRANGE', k, 0, -1], zset: k => ['ZRANGE', k, 0, -1, 'WITHSCORES'], hash: k => ['HGETALL', k] };
+  const alvo = outros.map((k, i) => [k, tipos[i]]).filter(([, t]) => LER[t]);
+  const conteudo = await pipe(alvo.map(([k, t]) => LER[t](k)));
+  const estruturas = Object.fromEntries(alvo.map(([k, t], i) => [k.slice(PFX.length), { t, v: conteudo[i] }]));
   const variaveis = VARS.filter(k => process.env[k] != null);
-  return { em: new Date().toISOString(), prefixo: PFX, chaves: nomes.length, dados, variaveis };
+  return { em: new Date().toISOString(), prefixo: PFX, chaves: Object.keys(dados).length + alvo.length, dados, estruturas, variaveis };
+}
+async function aplicar(d) {
+  const pares = Object.entries(d.dados || {}).filter(([, v]) => v != null);
+  for (let i = 0; i < pares.length; i += 50) await rd(['MSET', ...pares.slice(i, i + 50).flatMap(([k, v]) => [PFX + k, v])]);
+  const cmds = [];
+  for (const [k, { t, v }] of Object.entries(d.estruturas || {})) {
+    if (!v || !v.length) continue;
+    cmds.push(['DEL', PFX + k]);
+    if (t === 'list') cmds.push(['RPUSH', PFX + k, ...v]);
+    if (t === 'zset') { const a = []; for (let j = 0; j < v.length; j += 2) a.push(v[j + 1], v[j]); cmds.push(['ZADD', PFX + k, ...a]); }
+    if (t === 'hash') cmds.push(['HSET', PFX + k, ...v]);
+  }
+  if (cmds.length) await pipe(cmds);
+  return pares.length + Object.keys(d.estruturas || {}).length;
 }
 
 async function salvarNoBlob(req) {
@@ -67,9 +99,7 @@ module.exports = async (req, res) => {
     if (b.acao === 'restaurar') {
       if (!temChave(req)) return res.status(401).json({ erro: 'Não autorizado' });
       const d = decifrar(b.backup || {});
-      const pares = Object.entries(d.dados || {}).filter(([, v]) => v != null);
-      for (let i = 0; i < pares.length; i += 50) await rd(['MSET', ...pares.slice(i, i + 50).flatMap(([k, v]) => [PFX + k, v])]);
-      return res.json({ ok: 1, restauradas: pares.length, de: d.em });
+      return res.json({ ok: 1, restauradas: await aplicar(d), de: d.em });
     }
     const a = await auth(req);
     if (!a || !a.role?.admin) return res.status(403).json({ erro: 'Só administradores' });
@@ -78,6 +108,14 @@ module.exports = async (req, res) => {
       return res.json({ arquivos: blobs.map(x => ({ caminho: x.pathname, tamanho: x.size, em: x.uploadedAt, url: x.url })) });
     }
     if (b.acao === 'agora') return res.json(await salvarNoBlob(req));
+    if (b.acao === 'restaurar_arquivo') {
+      const u = new URL(String(b.url || ''));
+      if (!/\.public\.blob\.vercel-storage\.com$/.test(u.hostname) || !u.pathname.startsWith('/backups/')) return res.status(400).json({ erro: 'Arquivo de backup inválido' });
+      const d = decifrar(await (await fetch(u)).json());
+      const antes = await salvarNoBlob(req); // cópia do estado atual antes de sobrescrever
+      return res.json({ ok: 1, restauradas: await aplicar(d), de: d.em, copiaAntes: antes.arquivo });
+    }
     res.status(400).json({ erro: 'Ação inválida' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
+module.exports.interno = { montar, aplicar, cifrar, decifrar };
