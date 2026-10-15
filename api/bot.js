@@ -79,7 +79,7 @@ module.exports = async (req, res) => {
       return res.json({ cfg: n, aviso });
     }
     if (b.acao === 'simular') { if (precisa('automacoes')) return; return res.json(await B.simular(TIPOS.includes(b.tipo) ? b.tipo : 'dm', S(b.texto, 500), S(b.media, 40))); }
-    if (b.acao === 'assinar') { if (precisa('automacoes')) return; await IG.assinar(); return res.json({ campos: await IG.assinatura() }); }
+    if (b.acao === 'assinar') { if (precisa('automacoes')) return; await IG.assinar(); return res.json({ campos: await IG.assinatura(), testes: await IG.testarPermissoes() }); }
     if (b.acao === 'limpar_log') { if (precisa('automacoes')) return; await rd(['DEL', 'bot:log']); return res.json({ ok: 1 }); }
     if (b.acao === 'conversas') { if (precisa('conversas')) return; return res.json({ lista: await lista(300) }); }
     if (b.acao === 'conversa') {
