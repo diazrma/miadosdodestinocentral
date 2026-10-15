@@ -659,9 +659,12 @@ const crDia=d=>{const x=new Date(d+'T12:00:00');return String(x.getDate()).padSt
 // post do Instagram num dia sem planejamento aparece como avulso (feito pela equipe)
 // título do post do Instagram: primeira linha com texto de verdade (sem hashtags, @ e só emoji); linhas só de hashtag saem da descrição
 const crLimpa=l=>l.replace(/[#@][\p{L}\p{N}_.]+/gu,'').replace(/\s+/g,' ').trim();
-function crTxtIG(p){const ls=String(p.cap||p.leg||'').split('\n'),i=ls.findIndex(l=>(crLimpa(l).match(/\p{L}/gu)||[]).length>=3),tt=i<0?'':crLimpa(ls[i]).replace(/^[\s\-–—:·•.,]+/,''),
- desc=ls.filter((l,k)=>k!=i&&/\p{L}/u.test(crLimpa(l))).join('\n').trim(),pub={Reels:'Reels publicado',Carrossel:'Carrossel publicado',Vídeo:'Vídeo publicado'}[p.tipo]||'Foto publicada';
- return {titulo:tt?(tt.length>80?tt.slice(0,78).replace(/\s+\S*$/,'')+'…':tt):pub,desc}}
+function crTxtIG(p){const ls=String(p.cap||p.leg||'').split('\n'),i=ls.findIndex(l=>(crLimpa(l).match(/\p{L}/gu)||[]).length>=3);let tt=i<0?'':crLimpa(ls[i]).replace(/^[\s\-–—:·•.,]+/,''),resto='';
+ // linha longa com mais de uma frase: o título fica com a primeira frase (e os emojis dela) e o resto vai para a descrição
+ if(tt.length>60){const m=tt.match(/^(.{12,}?[.!?…])((?:\s*[\p{Extended_Pictographic}‍️])*)\s*(\S.*)$/u);if(m){tt=(m[1]+m[2]).trim();resto=m[3].trim()}}
+ if(tt.length>90){const c=tt.slice(0,88).replace(/\s+\S*$/,'');resto=(tt.slice(c.length).trim()+' '+resto).trim();tt=c+'…'}
+ const desc=[resto,...ls.filter((l,k)=>k!=i&&/\p{L}/u.test(crLimpa(l)))].filter(Boolean).join('\n').trim(),pub={Reels:'Reels publicado',Carrossel:'Carrossel publicado',Vídeo:'Vídeo publicado'}[p.tipo]||'Foto publicada';
+ return {titulo:tt||pub,desc}}
 const crTipoIG=t=>/reel/i.test(t)?'reels':/carross/i.test(t)?'carrossel':'post';
 function crAll(){const ig=(S.posts||[]).filter(p=>p.ig&&(p.dia||p.data).startsWith(CG.mes)).map(p=>({ig:1,id:'ig'+p.id,data:p.dia||p.data,tipo:crTipoIG(p.tipo),...crTxtIG(p),img:p.img,link:p.link})),usado=new Set(),hj=crHoje();
  const pl=CG.itens.map(x=>{const m=ig.find(p=>p.data==x.data&&!usado.has(p.id)&&p.tipo==x.tipo)||ig.find(p=>p.data==x.data&&!usado.has(p.id));if(m)usado.add(m.id);return {...x,feito:m?.link||(m?'#':''),atraso:!m&&x.data<hj}});
