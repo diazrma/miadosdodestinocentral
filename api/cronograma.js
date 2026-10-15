@@ -7,8 +7,21 @@ const MES = /^\d{4}-\d{2}$/, DIA = /^\d{4}-\d{2}-\d{2}$/, TIPOS = ['post', 'reel
 const BLOB = u => /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/crono\//i.test(String(u || ''));
 const S = (v, n) => String(v ?? '').slice(0, n);
 const ordem = (x, y) => (x.data + (x.hora || '99')).localeCompare(y.data + (y.hora || '99'));
+// GET ?img=<url>: repassa a foto do Instagram (só hosts do CDN da Meta) para o navegador poder desenhá-la no canvas
+const IGHOST = /(^|\.)(cdninstagram\.com|fbcdn\.net)$/i;
+async function proxyImg(req, res) {
+  let u; try { u = new URL(String(req.query.img)); } catch (e) { return res.status(400).end(); }
+  if (u.protocol !== 'https:' || !IGHOST.test(u.hostname)) return res.status(400).end();
+  const r = await fetch(u, { redirect: 'error' }).catch(() => null), tipo = r?.headers.get('content-type') || '';
+  if (!r || !r.ok || !tipo.startsWith('image/')) return res.status(502).end();
+  const b = Buffer.from(await r.arrayBuffer());
+  if (b.length > 8e6) return res.status(413).end();
+  res.setHeader('Content-Type', tipo); res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.end(b);
+}
 module.exports = async (req, res) => {
   try {
+    if (req.method === 'GET' && req.query?.img) return await proxyImg(req, res);
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
     if (!a.menus.includes('cronograma')) return res.status(403).json({ erro: 'Sem permissão para o cronograma' });
