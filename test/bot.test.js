@@ -88,6 +88,7 @@ test('fluxo completo: comentário → abertura → só para quem segue → link 
   let m = ultimo();
   assert.deepEqual(m.recipient, { comment_id: 'c1' });
   assert.equal(m.message.attachment.payload.buttons[0].payload, 'g:link');
+  assert.deepEqual((await dbGet('ct:u1')).espera, { auto: 'link', i: 0, livre: 1, gate: 1 });
   // mesma pessoa no mesmo post não dispara de novo
   await B.processar(comentario('c2', 'u1', 'episodio'));
   assert.equal(IGS.enviados.length, 1);
@@ -124,6 +125,16 @@ test('fluxo completo: comentário → abertura → só para quem segue → link 
   assert.equal(r.code, 302); assert.equal(r.headers.Location, 'https://youtu.be/abc');
   assert.equal(hst('st:link').cliques, 1);
   assert.equal((await chama({ method: 'GET', query: { r: 'abc.def' } })).code, 400);
+});
+
+test('abertura: responder qualquer coisa continua o fluxo (botão não aparece no Instagram web)', async () => {
+  await dbSet('bot:cfg', { ativo: true });
+  await dbSet('bot:autos', [{ id: 'ab', nome: 'Ab', ativo: true, tipo: 'comentario', todos: true, palavras: ['link'], modo: 'contem', umaVez: true, abertura: { ativo: true, texto: 'Toca ou responde', botao: 'Quero' }, passos: [{ t: 'msg', texto: 'Aqui o link' }] }]);
+  await B.processar(comentario('c9', 'u9', 'link'));
+  assert.equal(txt(ultimo()), 'Toca ou responde');
+  await B.processar(dm('u9', { text: 'quero' }));
+  assert.equal(txt(ultimo()), 'Aqui o link');
+  assert.equal(hst('st:ab').abertos, 1);
 });
 
 test('eco: mensagem nossa é ignorada; resposta pelo app pausa o bot', async () => {
