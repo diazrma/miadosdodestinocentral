@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
     if (b.acao === 'salvar_cfg') {
       if (precisa('automacoes')) return;
       const x = b.cfg || {}, as = await B.autos(), ok = id => as.some(y => y.id === id) ? id : '';
-      const n = { ativo: !!x.ativo, base: /^https:\/\//.test(x.base || '') ? S(x.base, 200) : '', boas: ok(x.boas), padrao: ok(x.padrao), padraoH: Math.min(168, Math.max(1, +x.padraoH || 12)), pausaH: Math.min(72, Math.max(0.25, +x.pausaH || 2)),
+      const n = { ativo: !!x.ativo, base: /^https:\/\//.test(x.base || '') ? S(x.base, 200) : '', lbase: /^https:\/\/[^/\s]+\/?$/.test(x.lbase || '') ? S(x.lbase, 200).replace(/\/$/, '') : B.CFG0.lbase, boas: ok(x.boas), padrao: ok(x.padrao), padraoH: Math.min(168, Math.max(1, +x.padraoH || 12)), pausaH: Math.min(72, Math.max(0.25, +x.pausaH || 2)),
         ib: (x.ib || []).filter(i => i.q && ok(i.auto)).slice(0, 4).map(i => ({ q: S(i.q, 80), auto: i.auto })),
         assist: { ativo: !!x.assist?.ativo, info: S(x.assist?.info, 6000), limite: Math.min(100, Math.max(1, +x.assist?.limite || 20)), humano: S(x.assist?.humano, 300) } };
       const old = await B.cfg(); let aviso = '';
