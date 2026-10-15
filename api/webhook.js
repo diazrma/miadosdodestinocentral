@@ -28,14 +28,18 @@ module.exports = async (req, res) => {
     if (q.tick) return res.json({ ok: 1, n: await B.tick() });
     if (req.method === 'GET') {
       if (q['hub.mode'] !== 'subscribe') return res.status(200).send('ok');
+      console.log('[webhook] verificação da Meta', q['hub.verify_token'] === IG.VERIFY() ? 'ok' : 'token não confere');
       return IG.VERIFY() && q['hub.verify_token'] === IG.VERIFY() ? res.status(200).send(q['hub.challenge']) : res.status(403).send('Token de verificação não confere');
     }
     const sig = req.headers['x-hub-signature-256'], raws = await corpo(req), raw = raws.find(r => IG.assinaturaOk(r, sig));
+    console.log('[webhook] POST', sig ? 'com assinatura' : 'sem assinatura', raw ? 'aceita' : 'RECUSADA', 'corpos=' + raws.length);
     if (!raw) {
       await B.log(IG.SECRET() ? 'Webhook recusado: assinatura inválida (confira IG_APP_SECRET)' : 'Webhook recusado: falta IG_APP_SECRET na Vercel');
       return res.status(403).send('assinatura');
     }
-    await B.processar(JSON.parse(raw.toString('utf8'))).catch(e => B.log('Webhook: ' + e.message));
+    const ev = JSON.parse(raw.toString('utf8'));
+    console.log('[webhook] eventos', (ev.entry || []).map(e => [...(e.changes || []).map(c => c.field), ...(e.messaging || []).map(m => m.postback ? 'postback' : m.message?.is_echo ? 'eco' : 'mensagem')]).flat().join(',') || 'nenhum');
+    await B.processar(ev).catch(e => { console.log('[webhook] erro', e.message); return B.log('Webhook: ' + e.message); });
     await B.tick().catch(() => {});
     res.status(200).send('EVENT_RECEIVED');
   } catch (e) { await B.log('Webhook: ' + e.message); res.status(200).send('EVENT_RECEIVED'); }
