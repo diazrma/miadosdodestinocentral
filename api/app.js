@@ -66,6 +66,22 @@ module.exports = async (req, res) => {
       if (us.some(u => !all.find(r => r.id === u.role))) return no(400, 'Há usuários neste perfil. Troque o perfil deles antes de excluir.');
       st.roles = all; await dbSet('state', st); return res.json({ ok: 1 });
     }
+    // 🛒 Loja: produtos cadastrados na Uma Penca e o que fica ou sai na renovação do mês
+    if (b.acao && b.acao.startsWith('loja_')) {
+      if (!can('loja')) return no(403, 'Sem permissão');
+      const ps = await dbGet('loja') || [];
+      if (b.acao === 'loja_listar') return res.json({ produtos: ps });
+      if (b.acao === 'loja_salvar') {
+        const x = b.p || {}, old = ps.find(p => p.id === x.id), txt = (v, n) => String(v || '').trim().slice(0, n);
+        if (!txt(x.nome, 120)) return no(400, 'Nome é obrigatório');
+        const n = { id: old ? old.id : randomUUID(), up: txt(x.up, 12).replace(/\D/g, ''), nome: txt(x.nome, 120), tipo: txt(x.tipo, 40), preco: txt(x.preco, 60),
+          status: ['aguardando', 'no_ar', 'arquivado'].includes(x.status) ? x.status : 'aguardando', mes: /^\d{4}-\d{2}$/.test(x.mes) ? x.mes : new Date().toISOString().slice(0, 7),
+          proximo: ['fica', 'sai', ''].includes(x.proximo) ? x.proximo : '', img: /^https:\/\//.test(x.img || '') ? txt(x.img, 400) : '', obs: txt(x.obs, 300),
+          por: old ? old.por : a.u.nome, em: Date.now() };
+        await dbSet('loja', old ? ps.map(p => p.id === n.id ? n : p) : [n, ...ps].slice(0, 500)); return res.json({ ok: 1, p: n });
+      }
+      if (b.acao === 'loja_remover') { await dbSet('loja', ps.filter(p => p.id !== b.id)); return res.json({ ok: 1 }); }
+    }
     no(400, 'Ação inválida');
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
