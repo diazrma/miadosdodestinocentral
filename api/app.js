@@ -76,7 +76,7 @@ module.exports = async (req, res) => {
         if (!txt(x.nome, 120)) return no(400, 'Nome é obrigatório');
         const n = { id: old ? old.id : randomUUID(), up: txt(x.up, 12).replace(/\D/g, ''), nome: txt(x.nome, 120), tipo: txt(x.tipo, 40), preco: txt(x.preco, 60),
           status: ['aguardando', 'no_ar', 'arquivado'].includes(x.status) ? x.status : 'aguardando', mes: /^\d{4}-\d{2}$/.test(x.mes) ? x.mes : new Date().toISOString().slice(0, 7),
-          proximo: ['fica', 'sai', ''].includes(x.proximo) ? x.proximo : '', img: /^https:\/\//.test(x.img || '') ? txt(x.img, 400) : '', obs: txt(x.obs, 300),
+          proximo: ['fica', 'sai', ''].includes(x.proximo) ? x.proximo : '', url: /^https:\/\/umapenca\.com\//.test(x.url || '') ? txt(x.url, 300) : '', img: /^https:\/\//.test(x.img || '') ? txt(x.img, 400) : '', obs: txt(x.obs, 300),
           por: old ? old.por : a.u.nome, em: Date.now() };
         await dbSet('loja', old ? ps.map(p => p.id === n.id ? n : p) : [n, ...ps].slice(0, 500)); return res.json({ ok: 1, p: n });
       }
