@@ -39,6 +39,15 @@ module.exports = async (req, res) => {
     const b = req.body || {}, can = m => a.menus.includes(m), no = (c, m) => res.status(c).json({ erro: m });
     const precisa = (...ms) => ms.some(can) ? null : no(403, 'Sem permissão');
     if (b.acao === 'tick') return res.json({ n: await B.tick() });
+    // relatório/feedback: soma os contadores diários do robô entre duas datas (AAAA-MM-DD, até 1 ano)
+    if (b.acao === 'robo') {
+      if (precisa('relatorio', 'feed', 'automacoes')) return;
+      const de = new Date(S(b.de, 10) + 'T12:00:00Z'), ate = new Date(S(b.ate, 10) + 'T12:00:00Z'), tot = {};
+      if (isNaN(de) || isNaN(ate) || ate < de) return no(400, 'Período inválido');
+      for (let d = de, n = 0; d <= ate && n < 366; d = new Date(d.getTime() + 864e5), n++)
+        for (const [k, v] of Object.entries(hm(await rd(['HGETALL', 'std:' + d.toISOString().slice(0, 10)])))) tot[k] = (tot[k] || 0) + v;
+      return res.json({ tot });
+    }
     if (b.acao === 'painel') {
       if (precisa('automacoes', 'contatos', 'conversas')) return;
       const as = await B.autos(), dias = [];
