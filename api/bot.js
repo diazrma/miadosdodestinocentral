@@ -26,7 +26,7 @@ function limpaAuto(x, old) {
     criado: old?.criado || Date.now(), editado: Date.now()
   };
 }
-const pub = c => ({ id: c.id, nome: c.nome, user: c.user, foto: c.foto, tags: c.tags || [], campos: c.campos || {}, n: c.n || 0, ultimo: c.ultimo, janela: c.janela || 0, prev: c.prev || '', prevD: c.prevD || '', humano: !!c.humano, pausa: c.pausa || 0, novo: !!c.novo, segue: c.segue, seg: c.seg, cliques: c.cliques || 0, notas: c.notas || '', criado: c.criado });
+const pub = c => ({ id: c.id, nome: c.nome, user: c.user, foto: c.foto, tags: c.tags || [], campos: c.campos || {}, n: c.n || 0, ultimo: c.ultimo, janela: c.janela || 0, prev: c.prev || '', prevD: c.prevD || '', humano: !!c.humano, semBot: !!c.semBot, pausa: c.pausa || 0, novo: !!c.novo, segue: c.segue, seg: c.seg, cliques: c.cliques || 0, notas: c.notas || '', criado: c.criado });
 async function lista(n) {
   const ids = await rd(['ZREVRANGE', 'cts', 0, n - 1]) || [], out = [];
   for (let i = 0; i < ids.length; i += 100) out.push(...(await rd(['MGET', ...ids.slice(i, i + 100).map(x => 'ct:' + x)])).filter(Boolean).map(x => pub(JSON.parse(x))));
@@ -97,6 +97,7 @@ module.exports = async (req, res) => {
       if (b.notas !== undefined) c.notas = S(b.notas, 2000);
       if (b.pausa !== undefined) c.pausa = +b.pausa ? Date.now() + Math.min(720, +b.pausa) * 3600e3 : 0;
       if (b.humano !== undefined) c.humano = b.humano ? 1 : 0;
+      if (b.semBot !== undefined) { c.semBot = b.semBot ? 1 : 0; if (c.semBot) c.espera = null; }
       if (b.espera === null) c.espera = null;
       await B.putC(c); return res.json({ c: pub(c) });
     }
