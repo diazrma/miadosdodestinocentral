@@ -195,6 +195,33 @@ test('simulador não envia nada e mostra o fluxo', async () => {
   assert.equal((await B.simular('comentario', 'nada a ver')).auto, null);
 });
 
+test('nunca automatizar: amigo marcado não recebe nada (DM, comentário, espera e disparo)', async () => {
+  await dbSet('bot:cfg', { ativo: true, boas: 'bv', padrao: 'pd', assist: { ativo: true, info: 'x' } });
+  await dbSet('bot:autos', [
+    { id: 'bv', nome: 'Boas-vindas', ativo: true, tipo: 'manual', passos: [{ t: 'msg', texto: 'Bem-vinda!' }] },
+    { id: 'pd', nome: 'Padrão', ativo: true, tipo: 'manual', passos: [{ t: 'msg', texto: 'Resposta padrão' }] },
+    { id: 'kw', nome: 'Link', ativo: true, tipo: 'dm', palavras: ['link'], modo: 'contem', passos: [{ t: 'msg', texto: 'Aqui o link' }] },
+    { id: 'cm', nome: 'Comentário', ativo: true, tipo: 'comentario', todos: true, palavras: ['eu'], modo: 'contem', publicas: ['Oba!'], passos: [{ t: 'msg', texto: 'Te mandei!' }] }
+  ]);
+  await dbSet('ct:u9', { id: 'u9', semBot: 1 });
+  const env = IGS.enviados.length, pubs = IGS.publicas.length;
+  await B.processar(dm('u9', { text: 'oi amigo, me manda o link' }));
+  await B.processar(comentario('c-u9', 'u9', 'eu quero'));
+  assert.equal(IGS.enviados.length, env);
+  assert.equal(IGS.publicas.length, pubs);
+  const c = await dbGet('ct:u9');
+  assert.equal(c.n, 1); assert.equal(c.semBot, 1);
+  assert.ok((R.get('cv:u9') || []).length >= 2, 'a conversa continua registrada');
+  // espera agendada também não sai
+  R.set('fila', new Map([[JSON.stringify({ a: 'kw', c: 'u9', i: 0 }), Date.now() - 1]]));
+  assert.equal(await B.tick(), 0);
+  assert.equal(IGS.enviados.length, env);
+  // voltando a automatizar, o robô responde de novo
+  await dbSet('ct:u9', { ...(await dbGet('ct:u9')), semBot: 0 });
+  await B.processar(dm('u9', { text: 'me manda o link' }));
+  assert.equal(txt(ultimo()), 'Aqui o link');
+});
+
 // ---- webhook HTTP
 function chama({ method = 'POST', query = {}, body, headers = {}, parsed }) {
   const req = Readable.from(body ? [Buffer.from(body)] : []);
