@@ -238,13 +238,8 @@ async function numerosKwai(usuario) {
     views: +v.view_count || 0, curtidas: +v.like_count || 0, comentarios: +v.comment_count || 0, compart: +v.forward_count || 0 }));
 }
 const avisarKwai = () => avisarEquipe('📲 Kwai: o post de hoje está pronto', 'Abra a Central › TikTok e Kwai: baixe a imagem, copie a legenda e poste. Depois toque em "Postei".');
-async function avisarEquipe(titulo, texto) {
-  const ap = (await dbGet('push_aparelhos')) || [];
-  let ok = 0;
-  // só os celulares marcados como da equipe (Central › App › Aparelhos), nunca o público do app
-  for (const a of ap.filter(x => x.equipe).slice(-10)) { try { await enviarPush({ titulo, texto, token: a.token }); ok++; } catch (e) {} }
-  return ok;
-}
+// só os celulares marcados como da equipe; o tipo "kwai" pode ser desligado em Configurações › Notificações da equipe
+const avisarEquipe = (titulo, texto) => require('../lib/avisos').avisar('kwai', titulo, texto);
 async function diario(r, forcarId, horario = 'a') {
   const out = {};
   // TikTok
