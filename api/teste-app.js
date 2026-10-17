@@ -1,37 +1,52 @@
-// Post diário do teste do app (feed, 12h de Brasília): rodízio das 8 artes de teste-app/ (telas da Play Store),
-// uma por dia, cada uma com a sua legenda. Quem comenta APP recebe o link pela automação "Comentou APP".
+// Story diário do teste do app (12h de Brasília): rodízio das 8 telas da Play Store (teste-app/story_NN.jpg), uma por dia,
+// sem repetir até passar por todas. A chamada "Responda APP" aciona a automação "Story pede o app".
 // GET  /api/teste-app             -> agendado (Vercel Cron); uma vez por dia; desliga com recursos.postTesteApp = false
 // POST /api/teste-app { acao: 'agora' } -> equipe (menu Publicar): publica o de hoje fora do horário
 const { auth, dbGet, dbSet } = require('../lib/db');
+const path = require('path');
+process.env.FONTCONFIG_PATH = process.env.FONTCONFIG_PATH || path.join(__dirname, '..', 'fonts');  // fontes do texto (a Vercel não tem)
+const sharp = require('sharp');
+const { put, del } = require('@vercel/blob');
+const { cred } = require('../lib/blob');
 const { publicarIG } = require('../lib/ig-post');
 
-const SITE = () => process.env.SITE_URL || 'https://' + (process.env.VERCEL_PROJECT_PRODUCTION_URL || 'miadosdodestinocentral.vercel.app');
-const RODAPE = '\n\n📲 O app de Miados do Destino está em teste na Google Play: é grátis e leva 2 minutinhos pra entrar. Comente APP que a gente te manda o link no direct (ou pega no link da bio). Ficar 14 dias com ele ajuda a lançar pra todo mundo 💛\n\n#miadosdodestino #dorama #kdrama #gatos #app';
-const POSTS = [
-  'Os gatos sabem o seu destino 🐾 Sussurros, jogo, quiz e um enigma esperando por você no app.',
-  'Toque a canção da Yoo Nari 🎻 No Chuva de notas, cada gota vira uma nota no violino. Qual é o seu recorde?',
-  'Todo dia um gato escolhe você e deixa um recado lacrado 🔮 O envelope de hoje está no app.',
-  'Qual gato do destino combina com você? 🐱 Faça o quiz no app e mostra o resultado nos Stories.',
-  'O elenco na sua tela de bloqueio 📱 Papéis de parede da Yoo Nari, do Sr. Baek e dos gatos (e um secreto pra quem jogar).',
-  'Revele o segredo à luz de vela 🕯️ Vire o desenho do Haneul e descubra o quinto gato.',
-  'Tudo sobre a série em primeira mão 📰 A Gazeta do Destino traz notícias, vídeos e avisos de cada estreia.',
-  'Yoo Nari, Sr. Baek e os gatos 🐾 Conheça quem vive essa história de chuva e destino.'
+// telas, na ordem do rodízio (para os avisos e o registro)
+const POSTS = ['Destino', 'Chuva de notas', 'Sussurro do dia', 'Quiz', 'Papéis de parede', 'Enigma', 'Gazeta do Destino', 'Elenco'];
+// chamada escrita por cima da tela; 7 frases x 8 telas: a mesma combinação só volta depois de 56 dias
+const CHAMADAS = [
+  'Responda APP que eu te mando o link',
+  'Quer testar antes de todo mundo? Responda APP',
+  'É grátis: responda APP e receba o convite',
+  'Responda APP e entre no teste em 2 minutinhos',
+  'Os gatos te esperam no app. Responda APP',
+  'Ajude a lançar o app: responda APP',
+  'Responda APP e ganhe acesso ao teste'
 ];
+const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+async function arte(i, frase) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920">
+    <text x="540" y="1792" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="42" fill="#f3e7d3">${esc(frase)}</text>
+    <text x="540" y="1852" text-anchor="middle" font-family="DejaVu Sans" font-size="36" fill="#e2b23e">ou pegue no link da bio</text></svg>`;
+  return sharp(path.join(__dirname, '..', 'teste-app', `story_${String(i + 1).padStart(2, '0')}.jpg`))
+    .composite([{ input: Buffer.from(svg), top: 0, left: 0 }]).jpeg({ quality: 88 }).toBuffer();
+}
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const doDia = data => Math.floor(new Date(data + 'T12:00:00Z').getTime() / 864e5) % POSTS.length;
 
-async function postar(por) {
+async function postar(por, req) {
   const data = hojeBR(), ult = await dbGet('teste_app_post').catch(() => null);
   if (ult && ult.data === data) return { ...ult, repetido: true };
   const c = await dbGet('app_conteudo') || {};
   if (c.recursos && c.recursos.postTesteApp === false) return { desligado: true };
-  const i = doDia(data), arte = String(i + 1).padStart(2, '0');
+  const n = Math.floor(new Date(data + 'T12:00:00Z').getTime() / 864e5), i = doDia(data), frase = CHAMADAS[n % CHAMADAS.length];
   const av = require('../lib/avisos');
   let r;
-  try { r = await publicarIG({ image_url: `${SITE()}/teste-app/${arte}.jpg`, caption: POSTS[i] + RODAPE }); }
-  catch (e) { await av.falhou('Post do teste do app', e).catch(() => {}); throw e; }
-  await av.publicado('Post do teste do app', r).catch(() => {});
-  const reg = { data, arte, ...r, por, quando: new Date().toISOString() };
+  try {
+    const blob = await put(`publicar/teste-app-${data}.jpg`, await arte(i, frase), { access: 'public', contentType: 'image/jpeg', addRandomSuffix: true, ...cred(req) });
+    try { r = await publicarIG({ media_type: 'STORIES', image_url: blob.url }); } finally { await del(blob.url, cred(req)).catch(() => {}); }
+  } catch (e) { await av.falhou('Story do teste do app', e).catch(() => {}); throw e; }
+  await av.publicado(`Story do teste do app (${POSTS[i]})`, r).catch(() => {});
+  const reg = { data, tela: POSTS[i], frase, ...r, por, quando: new Date().toISOString() };
   await dbSet('teste_app_post', reg);
   return reg;
 }
@@ -41,13 +56,13 @@ module.exports = async (req, res) => {
     if (req.method === 'GET') {
       const seg = process.env.CRON_SECRET;
       if (seg && req.headers.authorization !== 'Bearer ' + seg) return res.status(401).json({ erro: 'Não autorizado' });
-      return res.json(await postar('Agendamento'));
+      return res.json(await postar('Agendamento', req));
     }
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
     if (!a.menus.includes('publicar')) return res.status(403).json({ erro: 'Sem permissão para publicar' });
-    if ((req.body || {}).acao === 'agora') return res.json(await postar(a.u.nome));
+    if ((req.body || {}).acao === 'agora') return res.json(await postar(a.u.nome, req));
     res.status(400).json({ erro: 'Ação inválida' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
-module.exports.interno = { POSTS, doDia };
+module.exports.interno = { POSTS, CHAMADAS, doDia, arte };
