@@ -25,7 +25,9 @@ module.exports = async (req, res) => {
     const menu = b.acao === 'enviar' && nome.startsWith('app/') ? 'app' : b.acao === 'enviar' && nome.startsWith('crono/') ? 'cronograma' : 'publicar';
     if (!a.menus.includes(menu)) return res.status(403).json({ erro: menu === 'app' ? 'Sem permissão para o menu App' : menu === 'cronograma' ? 'Sem permissão para o cronograma' : 'Sem permissão para publicar' });
     if (b.type === 'blob.generate-presigned-url') {
-      return res.json(await handleUploadPresigned({ body: b, request: req, getSignedToken: async pathname => {
+      // o @vercel/blob 2.8 exige a chave pública do webhook mesmo sem onUploadCompleted; ela só confere o aviso de
+      // "upload concluído", que a Central não usa, então sem BLOB_WEBHOOK_PUBLIC_KEY vai um valor que nunca é usado
+      return res.json(await handleUploadPresigned({ body: b, request: req, webhookPublicKey: process.env.BLOB_WEBHOOK_PUBLIC_KEY || 'sem-callback', getSignedToken: async pathname => {
         if (!OK(pathname)) throw new Error('Nome de arquivo inválido');
         const lim = { allowedContentTypes: TIPOS, maximumSizeInBytes: MAX };
         return { token: await issueSignedToken({ pathname, operations: ['put'], validUntil: Date.now() + 3600e3, ...lim, ...cred(req) }), urlOptions: { ...lim, addRandomSuffix: true } };
