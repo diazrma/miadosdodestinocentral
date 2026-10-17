@@ -3,6 +3,7 @@ const { randomUUID } = require('crypto');
 const { del } = require('@vercel/blob');
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
+const { enviarCronograma } = require('../lib/email');
 const MES = /^\d{4}-\d{2}$/, DIA = /^\d{4}-\d{2}-\d{2}$/, TIPOS = ['post', 'reels', 'carrossel', 'story'], STATUS = ['ideia', 'pronto', 'postado'];
 const BLOB = u => /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/crono\//i.test(String(u || ''));
 const S = (v, n) => String(v ?? '').slice(0, n);
@@ -54,6 +55,13 @@ module.exports = async (req, res) => {
       await apagaImg(x.img);
       await dbSet('crono:' + b.mes, it.filter(i => i.id !== b.id));
       return res.json({ ok: 1 });
+    }
+    if (b.acao === 'email') {
+      // destinatários só da Equipe (pelo id), nunca um endereço solto vindo do navegador
+      const us = await dbGet('users') || [], para = us.filter(u => (b.para || []).includes(u.id) && u.email).map(u => u.email);
+      if (!para.length) return no(400, 'Escolha quem recebe');
+      const r = await enviarCronograma({ para, assunto: S(b.assunto, 150), texto: S(b.texto, 20000), imagens: b.imagens, por: a.u.nome });
+      return r.erro ? no(400, r.erro) : res.json({ ok: 1, para });
     }
     no(400, 'Ação inválida');
   } catch (e) { res.status(500).json({ erro: e.message }); }
