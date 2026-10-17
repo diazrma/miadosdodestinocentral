@@ -37,7 +37,7 @@ module.exports = async (req, res) => {
     if (b.acao === 'salvar_rascunho') {
       const r = b.r || {}, ds = await dbGet('drafts') || [], old = ds.find(d => d.id === r.id);
       const itens = (r.itens || []).filter(x => BLOB(x.url)).slice(0, 10).map(x => ({ url: x.url, vid: !!x.vid, cap: +x.cap || 0 }));
-      const n = { id: old ? old.id : randomUUID(), tipo: ['foto', 'carrossel', 'reels'].includes(r.tipo) ? r.tipo : 'foto', ar: String(r.ar || '1'), leg: leg(r.leg), resp: String(r.resp || ''), itens, autor: a.u.nome, t: Date.now() };
+      const n = { id: old ? old.id : randomUUID(), tipo: ['foto', 'carrossel', 'reels', 'story'].includes(r.tipo) ? r.tipo : 'foto', ar: String(r.ar || '1'), leg: leg(r.leg), resp: String(r.resp || ''), itens, autor: a.u.nome, t: Date.now() };
       if (old) await limpar(C, old.itens.map(x => x.url).filter(u => !itens.some(x => x.url === u)));
       await dbSet('drafts', old ? ds.map(d => d.id === n.id ? n : d) : [n, ...ds]); return res.json({ id: n.id });
     }
@@ -50,6 +50,8 @@ module.exports = async (req, res) => {
     if (!(await igToken())) return no(500, 'Instagram não conectado: na aba Dados, clique em Conectar Instagram');
     if (b.acao === 'item') {
       if (!BLOB(b.url)) return no(400, 'Arquivo inválido');
+      // story: foto ou vídeo sem legenda (o Instagram não aceita caption em STORIES)
+      if (b.story) return res.json({ id: (await ig('/' + await uid() + '/media', { media_type: 'STORIES', [b.video ? 'video_url' : 'image_url']: b.url }, 1)).id });
       const q = b.carrossel ? { is_carousel_item: 'true' } : { caption: leg(b.legenda) };
       if (b.video) Object.assign(q, { video_url: b.url, media_type: b.carrossel ? 'VIDEO' : 'REELS' }, b.carrossel ? {} : { share_to_feed: 'true', thumb_offset: String(Math.max(0, +b.capa || 0)) });
       else q.image_url = b.url;
