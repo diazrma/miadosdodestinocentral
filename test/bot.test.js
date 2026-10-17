@@ -248,3 +248,11 @@ test('webhook: verificação, assinatura (corpo cru e já lido pela Vercel)', as
   assert.equal(ultimo().recipient.id, 'u6');
   assert.match(JSON.parse(R.get('bot:log').at(-1) || '{}').msg || '', /assinatura inválida/);
 });
+
+test('{sussurro} e {gato} viram o Sussurro do dia', async () => {
+  await dbSet('sussurro_dia', { data: '2026-10-17', gato: 'zelda', texto: 'Olhe duas vezes antes de atravessar a água.' });
+  await dbSet('bot:cfg', { ativo: true });
+  await dbSet('bot:autos', [{ id: 'sd', nome: 'Sussurro: pedir', ativo: true, tipo: 'dm', palavras: ['sussurro'], modo: 'contem', passos: [{ t: 'msg', texto: '{gato} sussurrou: {sussurro}' }] }]);
+  await B.processar(dm('u10', { text: 'SUSSURRO' }));
+  assert.equal(txt(ultimo()), 'Zelda sussurrou: Olhe duas vezes antes de atravessar a água.');
+});

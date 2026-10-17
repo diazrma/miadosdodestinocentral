@@ -10,6 +10,13 @@ const { auth, dbGet, dbSet } = require('../lib/db');
 const { enviarPush } = require('../lib/fcm');
 const { perguntar } = require('../lib/groq');
 const story = require('../lib/sussurro-story');
+const B = require('../lib/bot');
+const DIARIO = 'Sussurro: diário', TAG = 'sussurro-diario';
+// assinantes (tag sussurro-diario) recebem no direct; o Instagram só deixa mandar para quem falou com o perfil nas últimas 24 h
+async function direct() {
+  const a = (await B.autos()).find(x => x.nome === DIARIO && x.ativo);
+  return a ? B.disparo(a.id, TAG) : null;
+}
 
 const GATOS = {
   naru: 'Naru, gata frajola de olhos amarelos. Apareceu na janela do hospital na noite em que Haneul nasceu; senta muito ereta na cadeira de Yoo Nari e lembra de coisas que um gato não deveria lembrar. Fala com ternura e intuição.',
@@ -93,7 +100,8 @@ module.exports = async (req, res) => {
       let aviso = null;
       if (!s.notificado) aviso = await notificar(s, 'Agendamento').catch(e => 'erro: ' + e.message);
       const insta = await postarStory(s, 'Agendamento', req).catch(e => 'erro: ' + e.message);
-      return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso, story: insta });
+      const dm = await direct().catch(e => 'erro: ' + e.message);
+      return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso, story: insta, direct: dm });
     }
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
