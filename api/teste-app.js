@@ -26,7 +26,11 @@ async function postar(por) {
   const c = await dbGet('app_conteudo') || {};
   if (c.recursos && c.recursos.postTesteApp === false) return { desligado: true };
   const i = doDia(data), arte = String(i + 1).padStart(2, '0');
-  const r = await publicarIG({ image_url: `${SITE()}/teste-app/${arte}.jpg`, caption: POSTS[i] + RODAPE });
+  const av = require('../lib/avisos');
+  let r;
+  try { r = await publicarIG({ image_url: `${SITE()}/teste-app/${arte}.jpg`, caption: POSTS[i] + RODAPE }); }
+  catch (e) { await av.falhou('Post do teste do app', e).catch(() => {}); throw e; }
+  await av.publicado('Post do teste do app', r).catch(() => {});
   const reg = { data, arte, ...r, por, quando: new Date().toISOString() };
   await dbSet('teste_app_post', reg);
   return reg;
