@@ -11,7 +11,7 @@ module.exports = async (req, res) => {
     const can = m => a.menus.includes(m), isAdmin = !!a.role?.admin, roleOf = id => (st.roles || []).find(r => r.id === id);
     // uma vez só: a Ana Paula passa a ser quem posta por padrão (pedido da direção, 09/10/2026); depois vale o que for escolhido no Painel
     if (req.method === 'GET' && !st.padraoAna && padraoAna(us)) { st.padrao = padraoAna(us); st.padraoAna = 1; await dbSet('state', st); }
-    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || padraoAna(us), menu: st.menu || null, fds: !!st.fds, avisos: st.avisos || {}, avisosTipos: require('../lib/avisos').TIPOS } });
+    if (req.method === 'GET') return res.json({ me: { ...pub(a.u), menus: MENUS.filter(can), admin: isAdmin }, users: us.map(pub), roles: st.roles, state: { resp: st.resp || {}, notes: st.notes || {}, seg: st.seg || {}, last: st.last || '', padrao: st.padrao || padraoAna(us), menu: st.menu || null, fds: !!st.fds, avisos: st.avisos || {}, avisosTipos: require('../lib/avisos').TIPOS, vapid: require('../lib/webpush').publica() } });
     const no = (c, m) => res.status(c).json({ erro: m });
     if (b.acao === 'salvar_estado') {
       if (!['posts', 'dados', 'relatorio', 'equipe'].some(can)) return no(403, 'Sem permissão');
@@ -26,6 +26,11 @@ module.exports = async (req, res) => {
       st.menu = m.length ? m : null; await dbSet('state', st); return res.json({ ok: 1 });
     }
     // a criadora de conteúdo posta no fim de semana? (padrão: não) — o cronograma deixa sábado e domingo como folga
+    if (b.acao === 'push_inscrever') return res.json({ total: await require('../lib/webpush').inscrever(b.sub, a.u) });
+    if (b.acao === 'push_teste') {
+      const n = await require('../lib/webpush').enviarWeb({ title: '🔔 Teste da Central', body: `Oi, ${a.u.nome.split(' ')[0]}! As notificações da Central estão chegando.`, tag: 'teste' }, s => s.uid === a.u.id);
+      return res.json({ n });
+    }
     if (b.acao === 'salvar_avisos') {
       const tipos = Object.keys(require('../lib/avisos').TIPOS), v = b.avisos || {};
       st.avisos = Object.fromEntries(tipos.map(t => [t, v[t] !== false])); await dbSet('state', st); return res.json({ ok: 1 });
