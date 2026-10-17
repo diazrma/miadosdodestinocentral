@@ -24,6 +24,9 @@
     },
     "api/bot.js": {
       "maxDuration": 60
+    },
+    "api/teste-app.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -50,6 +53,10 @@
     {
       "path": "/api/webhook?tick=1",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/teste-app",
+      "schedule": "0 15 * * *"
     }
   ],
   "rewrites": [
