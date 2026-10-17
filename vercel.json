@@ -26,7 +26,8 @@
       "maxDuration": 60
     },
     "api/teste-app.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "{fonts,teste-app}/**"
     }
   },
   "crons": [
