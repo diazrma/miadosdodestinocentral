@@ -99,8 +99,10 @@ module.exports = async (req, res) => {
       const { s, novo } = await gerar(false);
       let aviso = null;
       if (!s.notificado) aviso = await notificar(s, 'Agendamento').catch(e => 'erro: ' + e.message);
-      const insta = await postarStory(s, 'Agendamento', req).catch(e => 'erro: ' + e.message);
+      const av = require('../lib/avisos');
+      const insta = await postarStory(s, 'Agendamento', req).then(r => (av.publicado('Story do Sussurro', r).catch(() => {}), r), e => (av.falhou('Story do Sussurro', e).catch(() => {}), 'erro: ' + e.message));
       const dm = await direct().catch(e => 'erro: ' + e.message);
+      await require('../lib/avisos').diario().catch(() => {});  // verificação diária dos avisos da equipe (14 dias de teste)
       return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso, story: insta, direct: dm });
     }
     const a = await auth(req);

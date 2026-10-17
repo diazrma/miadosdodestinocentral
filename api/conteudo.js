@@ -122,9 +122,10 @@ module.exports = async (req, res) => {
       const email = String(b.email || '').trim().toLowerCase(), nome = String(b.nome || '').trim().slice(0, 60);
       if (!/^[^\s@]+@(gmail\.com|googlemail\.com|[^\s@]+\.[a-z]{2,})$/.test(email) || email.length > 120) return res.status(400).json({ erro: 'Confira o e-mail' });
       if (String(b.site || '')) return res.json({ ok: 1 }); // campo-armadilha para robôs
-      const lista = (await dbGet('testadores') || []).filter(x => x.email !== email);
+      const antes = await dbGet('testadores') || [], lista = antes.filter(x => x.email !== email);
       lista.push({ email, nome, quando: new Date().toISOString() });
       await dbSet('testadores', lista.slice(-1000));
+      await require('../lib/avisos').testador(nome, lista.length, lista.length > antes.length).catch(() => {});
       return res.json({ ok: 1, total: lista.length });
     }
     if (b.acao === 'registrar') {
