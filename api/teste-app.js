@@ -1,22 +1,13 @@
-// Post diário do teste do app (feed, 12h de Brasília): rodízio das 8 artes de teste-app/ (telas da Play Store),
-// uma por dia, cada uma com a sua legenda. Quem comenta APP recebe o link pela automação "Comentou APP".
+// Story diário do teste do app (12h de Brasília): rodízio das 8 telas da Play Store (teste-app/story_NN.jpg), uma por dia,
+// sem repetir até passar por todas. A chamada "Responda APP" aciona a automação "Story pede o app".
 // GET  /api/teste-app             -> agendado (Vercel Cron); uma vez por dia; desliga com recursos.postTesteApp = false
 // POST /api/teste-app { acao: 'agora' } -> equipe (menu Publicar): publica o de hoje fora do horário
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { publicarIG } = require('../lib/ig-post');
 
 const SITE = () => process.env.SITE_URL || 'https://' + (process.env.VERCEL_PROJECT_PRODUCTION_URL || 'miadosdodestinocentral.vercel.app');
-const RODAPE = '\n\n📲 O app de Miados do Destino está em teste na Google Play: é grátis e leva 2 minutinhos pra entrar. Comente APP que a gente te manda o link no direct (ou pega no link da bio). Ficar 14 dias com ele ajuda a lançar pra todo mundo 💛\n\n#miadosdodestino #dorama #kdrama #gatos #app';
-const POSTS = [
-  'Os gatos sabem o seu destino 🐾 Sussurros, jogo, quiz e um enigma esperando por você no app.',
-  'Toque a canção da Yoo Nari 🎻 No Chuva de notas, cada gota vira uma nota no violino. Qual é o seu recorde?',
-  'Todo dia um gato escolhe você e deixa um recado lacrado 🔮 O envelope de hoje está no app.',
-  'Qual gato do destino combina com você? 🐱 Faça o quiz no app e mostra o resultado nos Stories.',
-  'O elenco na sua tela de bloqueio 📱 Papéis de parede da Yoo Nari, do Sr. Baek e dos gatos (e um secreto pra quem jogar).',
-  'Revele o segredo à luz de vela 🕯️ Vire o desenho do Haneul e descubra o quinto gato.',
-  'Tudo sobre a série em primeira mão 📰 A Gazeta do Destino traz notícias, vídeos e avisos de cada estreia.',
-  'Yoo Nari, Sr. Baek e os gatos 🐾 Conheça quem vive essa história de chuva e destino.'
-];
+// telas, na ordem do rodízio (para os avisos e o registro)
+const POSTS = ['Destino', 'Chuva de notas', 'Sussurro do dia', 'Quiz', 'Papéis de parede', 'Enigma', 'Gazeta do Destino', 'Elenco'];
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const doDia = data => Math.floor(new Date(data + 'T12:00:00Z').getTime() / 864e5) % POSTS.length;
 
@@ -25,12 +16,12 @@ async function postar(por) {
   if (ult && ult.data === data) return { ...ult, repetido: true };
   const c = await dbGet('app_conteudo') || {};
   if (c.recursos && c.recursos.postTesteApp === false) return { desligado: true };
-  const i = doDia(data), arte = String(i + 1).padStart(2, '0');
+  const i = doDia(data), arte = 'story_' + String(i + 1).padStart(2, '0');
   const av = require('../lib/avisos');
   let r;
-  try { r = await publicarIG({ image_url: `${SITE()}/teste-app/${arte}.jpg`, caption: POSTS[i] + RODAPE }); }
-  catch (e) { await av.falhou('Post do teste do app', e).catch(() => {}); throw e; }
-  await av.publicado('Post do teste do app', r).catch(() => {});
+  try { r = await publicarIG({ media_type: 'STORIES', image_url: `${SITE()}/teste-app/${arte}.jpg` }); }
+  catch (e) { await av.falhou('Story do teste do app', e).catch(() => {}); throw e; }
+  await av.publicado(`Story do teste do app (${POSTS[i]})`, r).catch(() => {});
   const reg = { data, arte, ...r, por, quando: new Date().toISOString() };
   await dbSet('teste_app_post', reg);
   return reg;
