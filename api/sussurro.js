@@ -3,10 +3,13 @@
 // POST /api/sussurro { acao: 'gerar' }     -> equipe (menu App): gera de novo o de hoje
 //      { acao: 'notificar' }               -> envia agora a notificação do sussurro de hoje
 //      { acao: 'historico' }               -> últimos sussurros
+//      { acao: 'story' }                   -> publica agora o story do sussurro de hoje no Instagram
 // Sem GROQ_API_KEY (ou com a IA desligada no painel), usa a lista de frases da Central.
+// O agendamento também posta o sussurro como story no Instagram (uma vez por dia); desliga com recursos.sussurroStory = false.
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { enviarPush } = require('../lib/fcm');
 const { perguntar } = require('../lib/groq');
+const story = require('../lib/sussurro-story');
 
 const GATOS = {
   naru: 'Naru, gata frajola de olhos amarelos. Apareceu na janela do hospital na noite em que Haneul nasceu; senta muito ereta na cadeira de Yoo Nari e lembra de coisas que um gato não deveria lembrar. Fala com ternura e intuição.',
@@ -70,6 +73,16 @@ async function notificar(s, por) {
   return id;
 }
 
+async function postarStory(s, por, req) {
+  const c = await dbGet('app_conteudo') || {};
+  if (c.recursos && c.recursos.sussurroStory === false) return null;
+  const atual = await dbGet('sussurro_dia');
+  if (atual && atual.data === s.data && atual.story) return atual.story;  // já saiu hoje
+  const r = await story.publicar(s, req);
+  await dbSet('sussurro_dia', { ...(atual || s), story: { ...r, por, quando: new Date().toISOString() } });
+  return r;
+}
+
 module.exports = async (req, res) => {
   try {
     if (req.method === 'GET') {
@@ -79,7 +92,8 @@ module.exports = async (req, res) => {
       const { s, novo } = await gerar(false);
       let aviso = null;
       if (!s.notificado) aviso = await notificar(s, 'Agendamento').catch(e => 'erro: ' + e.message);
-      return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso });
+      const insta = await postarStory(s, 'Agendamento', req).catch(e => 'erro: ' + e.message);
+      return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso, story: insta });
     }
     const a = await auth(req);
     if (!a) return res.status(401).json({ erro: 'Faça login' });
@@ -91,6 +105,11 @@ module.exports = async (req, res) => {
       const s = await dbGet('sussurro_dia');
       if (!s || s.data !== hojeBR()) return res.status(400).json({ erro: 'Ainda não há sussurro de hoje. Gere primeiro.' });
       return res.json({ id: await notificar(s, a.u.nome) });
+    }
+    if (b.acao === 'story') {
+      const s = await dbGet('sussurro_dia');
+      if (!s || s.data !== hojeBR()) return res.status(400).json({ erro: 'Ainda não há sussurro de hoje. Gere primeiro.' });
+      return res.json({ story: await postarStory(s, a.u.nome, req) });
     }
     res.status(400).json({ erro: 'Ação inválida' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
