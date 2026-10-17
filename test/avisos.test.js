@@ -44,3 +44,12 @@ test('publicação automática: sucesso com link e falha com o motivo', async ()
   assert.deepEqual(enviados.map(e => e.titulo), ['✅ Story do Sussurro publicado', '⚠️ Falhou: Story do Sussurro']);
   assert.equal(enviados[1].texto, 'Instagram não conectado');
 });
+test('seguidores: primeira leitura só guarda; avisa ao cruzar cada 50, uma vez', async () => {
+  enviados.length = 0;
+  assert.equal(await av.seguidores(1526), null);
+  assert.equal(await av.seguidores(1549), null);
+  assert.equal(await av.seguidores(1551), 1);
+  assert.match(enviados[0].titulo, /1\.550 seguidores/);
+  assert.equal(await av.seguidores(1560), null);
+  assert.equal(await av.seguidores(1540), null);  // caiu: não avisa de novo
+});

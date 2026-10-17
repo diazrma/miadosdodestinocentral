@@ -102,7 +102,9 @@ module.exports = async (req, res) => {
       const av = require('../lib/avisos');
       const insta = await postarStory(s, 'Agendamento', req).then(r => (av.publicado('Story do Sussurro', r).catch(() => {}), r), e => (av.falhou('Story do Sussurro', e).catch(() => {}), 'erro: ' + e.message));
       const dm = await direct().catch(e => 'erro: ' + e.message);
-      await require('../lib/avisos').diario().catch(() => {});  // verificação diária dos avisos da equipe (14 dias de teste)
+      const avisos = require('../lib/avisos');  // verificações diárias dos avisos da equipe
+      await avisos.diario().catch(() => {});
+      await require('../lib/ig-post').ig('/me', { fields: 'followers_count' }).then(j => avisos.seguidores(j.followers_count)).catch(() => {});
       return res.json({ ok: 1, novo, data: s.data, gato: s.gato, origem: s.origem, aviso, story: insta, direct: dm });
     }
     const a = await auth(req);

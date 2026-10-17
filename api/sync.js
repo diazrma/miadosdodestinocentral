@@ -40,6 +40,7 @@ module.exports = async (req, res) => {
     // posts com mais de 30 dias reaproveitam as métricas da última sincronização: assim cabe no limite de 60 s da Vercel
     const antes = new Map(((c && c.d && c.d.posts) || []).map(p => [p.id, p])), corte = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
     const me = await get('/me', { fields: 'username,followers_count,media_count' });
+    await require('../lib/avisos').seguidores(me.followers_count).catch(() => {});
     let path = '/me/media', q = { fields: 'id,caption,media_type,media_product_type,timestamp,permalink,thumbnail_url,media_url,like_count,comments_count', limit: 50 }, items = [];
     for (let i = 0; i < 6; i++) {
       const j = await get(path, q);
