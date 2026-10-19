@@ -16,19 +16,28 @@ async function corpo(req) {
   const j = JSON.stringify(b), u = (s, up) => s.replace(/[\u007f-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0')[up ? 'toUpperCase' : 'toLowerCase']());
   return [j, u(j).replace(/\//g, '\\/'), u(j, 1).replace(/\//g, '\\/'), u(j)].map(s => Buffer.from(s));
 }
+// 🛒 clique em "Comprar" num link da Uma Penca mandado no direct: avisa a equipe quem tocou e em qual produto
+// (as vendas em si só aparecem no painel da Uma Penca; o clique é o sinal que a Central consegue ver)
+async function avisaCliqueLoja(o) {
+  if (!/^https:\/\/umapenca\.com\//.test(o.u || '')) return;
+  const [c, loja] = await Promise.all([B.getC(o.c).catch(() => null), require('../lib/db').dbGet('loja').catch(() => null)]);
+  const p = (loja || []).find(x => x.url === o.u), quem = c?.user ? '@' + c.user : (c?.nome || 'Alguém');
+  await require('../lib/avisos').avisar('loja_clique', '🛒 ' + quem + ' tocou em Comprar', (p ? p.nome : 'Produto da loja') + ' · ' + o.u).catch(() => {});
+}
+
 module.exports = async (req, res) => {
   const q = req.query || {};
   try {
     if (q.r) {
       const o = B.abreLink(q.r);
       if (!o) return res.status(400).send('Link inválido');
-      await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {})]);
+      await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {}), avisaCliqueLoja(o)]);
       res.setHeader('Location', o.u); return res.status(302).end();
     }
     if (q.l) {
       const o = await B.abreCurto(q.l);
       if (!o) return res.status(404).send('Link não encontrado');
-      await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {})]);
+      await Promise.all([B.stat('st:' + o.a, 'cliques'), B.dia('cliques'), B.getC(o.c).then(c => { if (!c.n && !c.user) return; c.cliques = (c.cliques || 0) + 1; return B.putC(c); }).catch(() => {}), avisaCliqueLoja(o)]);
       res.setHeader('Location', o.u); return res.status(302).end();
     }
     if (q.tick) return res.json({ ok: 1, n: await B.tick() });
