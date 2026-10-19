@@ -1,5 +1,5 @@
 // Conteúdo do app Miados do Destino.
-// GET  /api/conteudo          -> público (o app lê daqui): Gazeta, temporada, enigma e post do dia
+// GET  /api/conteudo          -> público (o app lê daqui): Gazeta, temporada, enigma, post do dia e a vitrine da loja
 // POST /api/conteudo          -> equipe com acesso ao menu "app":
 //      { acao: 'salvar', conteudo }                 salva o conteúdo editado no painel
 //      { acao: 'push', titulo, texto, topico }      envia para um tópico (todos = 'gazeta', lembrete = 'ep-N', vídeo da Milka = 'milka')
@@ -9,6 +9,7 @@
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { igToken } = require('../lib/ig');
 const { enviarPush } = require('../lib/fcm');
+const { vitrinePublica } = require('../lib/umapenca');
 
 const SITE = 'https://miados-do-destino.vercel.app';
 const PADRAO = {
@@ -112,7 +113,9 @@ module.exports = async (req, res) => {
       const creditos = await creditosPublicos(conteudo.creditos || PADRAO.creditos);
       const sh = await dbGet('sussurro_dia').catch(() => null);
       const sussurroHoje = sh && sh.data === hojeBR() && (sh.gato !== 'milka' || conteudo.enigma?.revelado) ? { data: sh.data, gato: sh.gato, texto: sh.texto } : null;
-      return res.json({ ...conteudo, creditos, sussurroHoje, postDoDia: { ...conteudo.postDoDia, post, recentes: (posts || []).slice(0, 6) }, atualizado: salvo.atualizado || null });
+      // vitrine do site: só o que está no ar na Uma Penca (a aba Loja é atualizada pelo /api/loja)
+      const loja = await vitrinePublica().catch(() => null);
+      return res.json({ ...conteudo, creditos, sussurroHoje, loja, postDoDia: { ...conteudo.postDoDia, post, recentes: (posts || []).slice(0, 6) }, atualizado: salvo.atualizado || null });
     }
 
     const b = req.body || {};
