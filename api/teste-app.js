@@ -9,6 +9,7 @@ const sharp = require('sharp');
 const { put, del } = require('@vercel/blob');
 const { cred } = require('../lib/blob');
 const { publicarIG } = require('../lib/ig-post');
+const { bandeiraBR, bandeiraUS, linhaComBandeira } = require('../lib/bandeiras');
 
 // telas, na ordem do rodízio (para os avisos e o registro)
 const POSTS = ['Destino', 'Chuva de notas', 'Sussurro do dia', 'Quiz', 'Papéis de parede', 'Enigma', 'Gazeta do Destino', 'Elenco'];
@@ -22,11 +23,12 @@ const CHAMADAS = [
   'Ajude a lançar o app: responda APP',
   'Responda APP e ganhe acesso ao teste'
 ];
-const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+const esc = t => String(t).replace(/[&<>']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&apos;' })[c]);
 async function arte(i, frase) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1920">
-    <text x="540" y="1792" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="42" fill="#f3e7d3">${esc(frase)}</text>
-    <text x="540" y="1852" text-anchor="middle" font-family="DejaVu Sans" font-size="36" fill="#e2b23e">ou pegue no link da bio</text></svg>`;
+    ${linhaComBandeira(bandeiraBR, frase, 1770, { bold: true })}
+    ${linhaComBandeira(bandeiraUS, "Reply APP and I'll send you the link", 1824, { bold: true })}
+    <text x="540" y="1878" text-anchor="middle" font-family="DejaVu Sans" font-size="34" fill="#e2b23e">ou pegue no link da bio · or tap the link in bio</text></svg>`;
   return sharp(path.join(__dirname, '..', 'teste-app', `story_${String(i + 1).padStart(2, '0')}.jpg`))
     .composite([{ input: Buffer.from(svg), top: 0, left: 0 }]).jpeg({ quality: 88 }).toBuffer();
 }
