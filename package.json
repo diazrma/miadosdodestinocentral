@@ -1,1 +1,1 @@
-{"name":"miados-central","private":true,"dependencies":{"@vercel/blob":"2.8.0","nodemailer":"6.9.16","sharp":"0.33.5","web-push":"3.6.7"}}
+{"name":"miados-central","private":true,"dependencies":{"@vercel/blob":"2.8.0","ffmpeg-static":"5.2.0","nodemailer":"6.9.16","sharp":"0.33.5","web-push":"3.6.7"},"allowScripts":{"ffmpeg-static@5.2.0":true}}
