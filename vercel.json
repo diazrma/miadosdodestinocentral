@@ -33,6 +33,10 @@
       "maxDuration": 300,
       "memory": 2048,
       "includeFiles": "{fonts/**,loja-story/**,node_modules/ffmpeg-static/ffmpeg}"
+    },
+    "api/destino.js": {
+      "maxDuration": 60,
+      "includeFiles": "{fonts,sussurro}/**"
     }
   },
   "crons": [
@@ -71,6 +75,10 @@
     {
       "path": "/api/loja?story=1",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/destino",
+      "schedule": "0 21 * * 6,0"
     }
   ],
   "rewrites": [
