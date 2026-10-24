@@ -29,13 +29,15 @@ R.set('mc:users', JSON.stringify([{ id: 'u1', nome: 'Rodrigo', role: 'admin' }])
 R.set('mc:state', JSON.stringify({ roles: db.ROLES }));
 const TK = 'Bearer ' + db.sign('u1');
 const varal = require('../api/varal');
-const { textos, foto, B } = varal.interno;
+const { textos, foto, B, email } = varal.interno;
+const EMAILS = [];
+email.enviar = async m => { EMAILS.push(m); return { ok: 1 }; };
 const SUBIDAS = [], APAGADAS = [];
 B.put = async (nome, buf) => { SUBIDAS.push({ nome, buf }); return { url: 'https://blob.test/' + nome }; };
 B.del = async url => { APAGADAS.push(url); };
-const chamar = (method, body, { ip = '1.2.3.4', query, auth } = {}) => new Promise(ok => {
+const chamar = (method, body, { ip = '1.2.3.4', query, auth, sessao } = {}) => new Promise(ok => {
   const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } };
-  varal({ method, body, query, headers: { 'x-forwarded-for': ip, ...(auth ? { authorization: auth } : {}) } }, res);
+  varal({ method, body, query, headers: { 'x-forwarded-for': ip, ...(auth ? { authorization: auth } : {}), ...(sessao ? { 'x-varal': sessao } : {}) } }, res);
 });
 // foto de 1600x1200 com EXIF (orientação 6 = girada) e "GPS" nos metadados
 const fotoTeste = () => sharp({ create: { width: 1600, height: 1200, channels: 3, background: '#c33' } }).withMetadata({ orientation: 6, exif: { IFD0: { Copyright: 'casa-da-vovo' } } }).jpeg().toBuffer();
@@ -102,4 +104,62 @@ test('envio: robô (campo escondido) não grava, foto falsa recusa, limite por h
   const cods = [];
   for (let i = 0; i < 5; i++) cods.push((await chamar('POST', { acao: 'enviar', nome: 'Zelda', foto: b64 }, { ip: '7.7.7.7' })).code);
   assert.deepEqual(cods, [200, 200, 200, 200, 429]);
+});
+
+test('conta: link no e-mail, sessão, minhas lembranças e apagar a própria', async () => {
+  assert.equal((await chamar('POST', { acao: 'entrar', email: 'nao-e-email' })).code, 400);
+  const e = await chamar('POST', { acao: 'entrar', email: ' Ana@Exemplo.com ', idioma: 'pt' }, { ip: '3.3.3.3' });
+  assert.equal(e.code, 200, JSON.stringify(e.j));
+  assert.equal(EMAILS.at(-1).to, 'ana@exemplo.com');
+  const t = EMAILS.at(-1).text.match(/\/varal\/entrar\?t=([\w-]+)/)[1];
+  const c = await chamar('POST', { acao: 'confirmar', t });
+  assert.equal(c.j.email, 'ana@exemplo.com');
+  assert.equal((await chamar('POST', { acao: 'confirmar', t })).code, 400, 'link vale uma vez');
+  const S = c.j.sessao;
+  // sessão falsa ou de equipe não vale
+  assert.equal((await chamar('POST', { acao: 'minhas' }, { sessao: S.replace(/.$/, 'x') })).code, 401);
+  assert.equal((await chamar('POST', { acao: 'minhas' }, { sessao: TK.slice(7) })).code, 401);
+  // pendura logada: aparece em minhas com status
+  const b64 = (await fotoTeste()).toString('base64');
+  const id = (await chamar('POST', { acao: 'enviar', nome: 'Naru', foto: b64 }, { ip: '3.3.3.3', sessao: S })).j.id;
+  const outra = (await chamar('POST', { acao: 'enviar', nome: 'Spark', foto: b64 }, { ip: '3.3.3.4' })).j.id;
+  const m = await chamar('POST', { acao: 'minhas' }, { sessao: S });
+  assert.deepEqual(m.j.itens.map(i => [i.nome, i.status]), [['Naru', 'fila']]);
+  assert.equal(m.j.itens[0].dono, undefined, 'não expõe o dono');
+  // não apaga a de outra pessoa
+  assert.equal((await chamar('POST', { acao: 'apagar', id: outra }, { sessao: S })).code, 404);
+  assert.equal((await chamar('POST', { acao: 'apagar', id }, { sessao: S })).code, 200);
+  assert.equal((await chamar('POST', { acao: 'minhas' }, { sessao: S })).j.itens.length, 0);
+  assert.equal((await chamar('POST', { acao: 'fila' }, { auth: TK })).j.fila.some(i => i.id === id), false);
+  // limite de links por e-mail
+  const cods = [];
+  for (let i = 0; i < 4; i++) cods.push((await chamar('POST', { acao: 'entrar', email: 'ana@exemplo.com' }, { ip: '3.3.3.' + (10 + i) })).code);
+  assert.deepEqual(cods, [200, 200, 200, 429]);
+});
+test('curtidas, busca e ordem por mais curtidas', async () => {
+  const b64 = (await fotoTeste()).toString('base64');
+  const ids = {};
+  for (const [nome, tipo] of [['Mimi', 'estrela'], ['Bolota', 'aqui'], ['Méli', 'aqui']]) {
+    ids[nome] = (await chamar('POST', { acao: 'enviar', nome, tipo, autor: 'Ana', foto: b64 }, { ip: '8.8.8.' + nome.length })).j.id;
+    await chamar('POST', { acao: 'aprovar', id: ids[nome] }, { auth: TK });
+  }
+  // curte, repete (não conta de novo), desfaz
+  assert.deepEqual((await chamar('POST', { acao: 'curtir', id: ids.Bolota, sim: true })).j, { curtidas: 1, curti: true });
+  assert.equal((await chamar('POST', { acao: 'curtir', id: ids.Bolota, sim: true })).j.curtidas, 1);
+  assert.equal((await chamar('POST', { acao: 'curtir', id: ids.Bolota, sim: true }, { ip: '6.6.6.6' })).j.curtidas, 2);
+  assert.equal((await chamar('POST', { acao: 'curtir', id: ids.Bolota, sim: false })).j.curtidas, 1);
+  assert.equal((await chamar('POST', { acao: 'curtir', id: ids.Bolota, sim: false })).j.curtidas, 1, 'desfazer duas vezes não tira de novo');
+  await chamar('POST', { acao: 'curtir', id: ids.Mimi, sim: true }, { ip: '6.6.6.7' });
+  await chamar('POST', { acao: 'curtir', id: ids.Mimi, sim: true }, { ip: '6.6.6.8' });
+  assert.equal((await chamar('POST', { acao: 'curtir', id: 'nada' })).code, 404);
+  const top = await chamar('GET', null, { query: { ordem: 'curtidas' } });
+  assert.deepEqual(top.j.itens.slice(0, 2).map(i => [i.nome, i.curtidas]), [['Mimi', 2], ['Bolota', 1]]);
+  assert.deepEqual((await chamar('GET', null, { query: { ordem: 'curtidas', tipo: 'aqui' } })).j.itens.map(i => i.nome), ['Bolota', 'Méli']);
+  // busca sem acento e sem diferenciar maiúscula
+  const b = await chamar('GET', null, { query: { q: 'MELI' } });
+  assert.deepEqual([b.j.total, b.j.itens[0].nome], [1, 'Méli']);
+  assert.equal((await chamar('GET', null, { query: { q: 'xyz' } })).j.total, 0);
+  // removida some do ranking
+  await chamar('POST', { acao: 'remover', id: ids.Mimi }, { auth: TK });
+  assert.equal((await chamar('GET', null, { query: { ordem: 'curtidas' } })).j.itens[0].nome, 'Bolota');
 });
