@@ -1,0 +1,33 @@
+# Milka Cast: sábado e domingo de manhã faz o vídeo do episódio (milka-cast/episodio.py) e manda para o Blob.
+# Quem publica é a Central, às 17h de Brasília (cron da Vercel em api/milka-cast.js).
+name: Milka Cast
+
+on:
+  schedule:
+    - cron: '0 14 * * 6,0'  # 11h em Brasília
+    - cron: '0 17 * * 6,0'  # 14h, segunda tentativa se a primeira falhar (se o vídeo já está pronto, não refaz)
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: 'Só testar (vídeo de exemplo, sobe e apaga, não publica)'
+        type: boolean
+        default: false
+
+jobs:
+  episodio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-save --ignore-scripts --no-package-lock @vercel/blob@2.8.0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
+      - run: pip install -q edge-tts pillow
+      - run: python milka-cast/episodio.py ${{ inputs.teste && 'teste' || '' }}
+        env:
+          MILKA_CAST_SECRET: ${{ secrets.MILKA_CAST_SECRET }}
