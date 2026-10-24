@@ -38,6 +38,9 @@
       "maxDuration": 300,
       "memory": 2048,
       "includeFiles": "{fonts/**,varal-post/**,node_modules/ffmpeg-static/ffmpeg}"
+    },
+    "api/milka-cast.js": {
+      "maxDuration": 300
     }
   },
   "crons": [
@@ -80,6 +83,10 @@
     {
       "path": "/api/varal?post=1",
       "schedule": "0 15 * * 4"
+    },
+    {
+      "path": "/api/milka-cast?post=1",
+      "schedule": "0 20 * * 6,0"
     }
   ],
   "rewrites": [
