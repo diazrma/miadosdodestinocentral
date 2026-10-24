@@ -126,3 +126,4 @@ module.exports = async (req, res) => {
     res.status(400).json({ erro: 'Ação inválida' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
+module.exports.GATOS = GATOS;

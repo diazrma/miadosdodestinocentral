@@ -4,7 +4,7 @@ const { igToken } = require('../lib/ig');
 const IG = require('../lib/igbot');
 const B = require('../lib/bot');
 const rd = B.rk;
-const TIPOS = ['comentario', 'dm', 'story', 'mencao', 'manual'], PASSOS = ['msg', 'pergunta', 'esperar', 'tag', 'se', 'humano'];
+const TIPOS = ['comentario', 'dm', 'story', 'mencao', 'manual'], PASSOS = ['msg', 'pergunta', 'esperar', 'tag', 'se', 'humano', 'profecia'];
 const S = (v, n) => String(v ?? '').slice(0, n);
 const hm = l => { const o = {}; for (let k = 0; k < (l || []).length; k += 2) o[l[k]] = +l[k + 1]; return o; };
 const tag = v => S(v, 30).trim().toLowerCase().replace(/\s+/g, '-');
