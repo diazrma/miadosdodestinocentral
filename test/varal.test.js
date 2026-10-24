@@ -28,6 +28,11 @@ const db = require('../lib/db');
 R.set('mc:users', JSON.stringify([{ id: 'u1', nome: 'Rodrigo', role: 'admin' }]));
 R.set('mc:state', JSON.stringify({ roles: db.ROLES }));
 const TK = 'Bearer ' + db.sign('u1');
+// Reels de quinta: vídeo e Instagram simulados
+const POSTS = [];
+require('../lib/varal-post').videoVaral = async () => Buffer.from('mp4');
+require('../lib/ig-post').publicarIG = async p => { POSTS.push(p); return { id: 'ig' + POSTS.length, link: 'https://instagram.com/p/x' }; };
+require('../lib/avisos').publicado = async () => {};
 const varal = require('../api/varal');
 const { textos, foto, B, email } = varal.interno;
 const EMAILS = [];
@@ -39,6 +44,7 @@ const chamar = (method, body, { ip = '1.2.3.4', query, auth, sessao } = {}) => n
   const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } };
   varal({ method, body, query, headers: { 'x-forwarded-for': ip, ...(auth ? { authorization: auth } : {}), ...(sessao ? { 'x-varal': sessao } : {}) } }, res);
 });
+const emBrasilia = (iso, f) => { const real = Date.now; Date.now = () => Date.parse(iso); return f().finally(() => { Date.now = real; }); };
 // foto de 1600x1200 com EXIF (orientação 6 = girada) e "GPS" nos metadados
 const fotoTeste = () => sharp({ create: { width: 1600, height: 1200, channels: 3, background: '#c33' } }).withMetadata({ orientation: 6, exif: { IFD0: { Copyright: 'casa-da-vovo' } } }).jpeg().toBuffer();
 
@@ -162,4 +168,35 @@ test('curtidas, busca e ordem por mais curtidas', async () => {
   // removida some do ranking
   await chamar('POST', { acao: 'remover', id: ids.Mimi }, { auth: TK });
   assert.equal((await chamar('GET', null, { query: { ordem: 'curtidas' } })).j.itens[0].nome, 'Bolota');
+});
+
+test('Reels de quinta: só na quinta, uma vez, respeita o desligar; equipe publica e gera prévia', async () => {
+  process.env.CRON_SECRET = 'cron-teste';
+  const cron = { query: { post: '1' }, auth: 'Bearer cron-teste' };
+  assert.equal((await chamar('GET', null, { query: { post: '1' } })).code, 401, 'sem a chave do cron');
+  // quarta 29/10/2026 15h UTC = 12h de Brasília: não posta
+  assert.equal((await emBrasilia('2026-10-28T15:00:00Z', () => chamar('GET', null, cron))).j.fora, true);
+  const q = await emBrasilia('2026-10-29T15:00:00Z', () => chamar('GET', null, cron));
+  assert.equal(q.j.data, '2026-10-29', JSON.stringify(q.j));
+  assert.equal(POSTS.length, 1);
+  assert.equal(POSTS[0].media_type, 'REELS');
+  assert.match(POSTS[0].caption, /varal|Varal/);
+  assert.match(POSTS[0].caption, /#MiadosDoDestino/);
+  assert.ok(APAGADAS.some(u => /publicar\/varal-2026-10-29/.test(u)), 'vídeo sai do Blob depois de publicar');
+  assert.equal((await emBrasilia('2026-10-29T18:00:00Z', () => chamar('GET', null, cron))).j.repetido, true);
+  assert.equal(POSTS.length, 1, 'não repete na mesma quinta');
+  // desligado na Central: a quinta seguinte passa em branco
+  assert.equal((await chamar('POST', { acao: 'post_ligar', ativo: false }, { auth: TK })).j.cfg.ativo, false);
+  assert.equal((await emBrasilia('2026-11-05T15:00:00Z', () => chamar('GET', null, cron))).j.desligado, true);
+  assert.equal(POSTS.length, 1);
+  // publicar agora vale mesmo desligado e fora da quinta; legenda muda de semana para semana
+  const ag = await emBrasilia('2026-10-30T15:00:00Z', () => chamar('POST', { acao: 'post_agora' }, { auth: TK }));
+  assert.equal(ag.j.ultimo.data, '2026-10-30');
+  assert.equal(POSTS.length, 2);
+  const { legendaDa, LEGENDAS } = require('../lib/varal-post');
+  const seis = ['2026-10-29', '2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26', '2026-12-03'].map(legendaDa);
+  assert.equal(new Set(seis).size, LEGENDAS.length, 'seis quintas seguidas, seis legendas diferentes');
+  const pv = await chamar('POST', { acao: 'post_previa' }, { auth: TK });
+  assert.match(pv.j.previa.url, /varal-previa/);
+  assert.equal((await chamar('POST', { acao: 'post_status' })).code, 401);
 });

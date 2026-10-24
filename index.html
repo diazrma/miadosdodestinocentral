@@ -1155,10 +1155,31 @@ const vrV=(id,k)=>(document.getElementById('vr-'+k+'-'+id)||{}).value;
 async function vrAprova(id){if(VRB[id])return;VRB[id]=1;render();try{await api('/api/varal',{acao:'aprovar',id,nome:vrV(id,'nome'),anos:vrV(id,'anos'),msg:vrV(id,'msg'),autor:vrV(id,'autor'),tipo:vrV(id,'tipo')});aviso('🧺 Pendurada no varal do site.');VR=null}catch(e){aviso(e.message,{erro:true})}delete VRB[id];render()}
 // recusar/remover pede um segundo toque no mesmo botão (sem confirm do navegador)
 async function vrTira(id,acao){if(!VRX[id]){VRX={[id]:1};render();setTimeout(()=>{if(VRX[id]){delete VRX[id];if(tab=='varal')render()}},5000);return}delete VRX[id];try{await api('/api/varal',{acao,id});aviso(acao=='recusar'?'Recusada e apagada.':'Tirada do varal.');VR=null}catch(e){aviso(e.message,{erro:true})}render()}
+// 🎬 Reels de quinta (12h): a Milka de exemplo balançando no varal; liga/desliga, prévia e publicar agora
+document.head.insertAdjacentHTML('beforeend','<style>.vp{display:grid;grid-template-columns:minmax(0,200px) 1fr;gap:16px;background:var(--cd);border:1px solid var(--bd);border-radius:16px;padding:14px;margin:6px 0 18px}.vp video{width:100%;border-radius:10px;background:#000;aspect-ratio:9/16}.vp .ph{display:flex;align-items:center;justify-content:center;aspect-ratio:9/16;border:1px dashed var(--bd);border-radius:10px;color:var(--mut);font-size:13px;text-align:center;padding:10px}.vp pre{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--mut);background:rgba(0,0,0,.18);border-radius:10px;padding:10px;max-height:150px;overflow:auto;margin:8px 0}.vp .bt{display:flex;flex-wrap:wrap;gap:8px}.vp .sim{background:#b9452f;color:#fff}@media(max-width:600px){.vp{grid-template-columns:1fr}.vp video{max-width:220px;margin:0 auto;display:block}.vp .ph{aspect-ratio:auto;padding:14px}}</style>');
+let VP=null,VPB='',VPX=0;
+async function vpLoad(){try{VP=await api('/api/varal',{acao:'post_status'})}catch(e){VP={erro:e.message}}if(tab=='varal')render()}
+async function vpAcao(acao,extra={}){
+ if(acao=='post_agora'&&!VPX){VPX=1;render();setTimeout(()=>{if(VPX){VPX=0;if(tab=='varal')render()}},5000);return}
+ VPX=0;VPB=acao;render();
+ try{VP=await api('/api/varal',{acao,...extra});aviso(acao=='post_agora'?'🎬 Reels do varal publicado no Instagram.':acao=='post_previa'?'🎬 Prévia pronta.':VP.cfg.ativo?'Reels de quinta ligado.':'Reels de quinta desligado.')}catch(e){aviso(e.message,{erro:true})}
+ VPB='';render()}
+function vpCard(){if(!VP){vpLoad();return '<div class="vp"><p class="mut">⏳ Carregando o Reels de quinta…</p></div>'}
+ if(VP.erro)return `<div class="vp"><p>🎬 Reels de quinta: ❌ ${esc(VP.erro)}</p></div>`;
+ const u=VP.ultimo,ativo=VP.cfg&&VP.cfg.ativo,quando=d=>new Date(d).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+ return `<div class="vp"><div>${VP.previa?`<video src="${esc(VP.previa.url)}#t=4.5" controls playsinline loop muted></video><span class="mut" style="font-size:12px">Prévia de ${esc(quando(VP.previa.quando))}</span>`:'<div class="ph">Sem prévia ainda.<br>Toque em 👀 Gerar prévia.</div>'}</div>
+ <div><h3 style="margin:0 0 4px">🎬 Reels de quinta</h3>
+ <p class="mut" style="margin:0">Toda quinta às 12h a Central publica um Reels de 10 s com a Milka de exemplo balançando no fio vermelho, chamando para pendurar no varal pelo link da bio. A legenda troca a cada semana.</p>
+ <p style="margin:8px 0 0">${ativo?'🟢 Ligado':'⚪ Desligado'} · ${u?`último: <a href="${esc(u.link||'#')}" target="_blank" rel="noopener" style="color:var(--gd)">${esc(u.data.split('-').reverse().join('/'))}</a> (${esc(u.por||'')})`:'ainda não publicou'}</p>
+ <pre>${esc(VP.legenda||'')}</pre>
+ <div class="bt"><button onclick="vpAcao('post_ligar',{ativo:${!ativo}})" ${VPB?'disabled':''}>${ativo?'⏸️ Desligar':'▶️ Ligar'}</button>
+ <button onclick="vpAcao('post_previa')" ${VPB?'disabled':''}>${VPB=='post_previa'?'⏳ Gerando (até 1 min)…':'👀 Gerar prévia'}</button>
+ ${ME.menus.includes('publicar')?`<button class="${VPX?'sim':'pr'}" onclick="vpAcao('post_agora')" ${VPB?'disabled':''}>${VPB=='post_agora'?'⏳ Publicando…':VPX?'Toque de novo para publicar':'🚀 Publicar agora'}</button>`:''}</div></div></div>`}
 function varal(){if(!VR){vrLoad();return '<h2>🧺 Varal</h2><p class="mut">⏳ Carregando…</p>'}
  if(VR.erro)return `<h2>🧺 Varal</h2><p>❌ ${esc(VR.erro)}</p><button onclick="VR=null;render()">Tentar de novo</button>`;
  const f=VR.fila||[],q=(id,k,v,max,ph)=>`<label>${ph}<input id="vr-${k}-${id}" value="${esc(v||'')}" maxlength="${max}"></label>`;
  return `<div class="ax-top"><div><h2>🧺 Varal das Lembranças</h2><p>Fotos que o público pendurou em <a href="https://miados-do-destino.vercel.app/varal" target="_blank" rel="noopener" style="color:var(--gd)">miados-do-destino.vercel.app/varal</a>. Só aparecem no site depois de aprovadas. Dá para corrigir o texto antes.</p></div><button onclick="VR=null;render()">🔄 Atualizar</button></div>
+ ${vpCard()}
  <h3>Esperando aprovação (${f.length})</h3>
  ${f.length?`<div class="vr-g">${f.map(i=>`<div class="vr-c"><img src="${esc(i.img)}" alt="" loading="lazy"><div class="vr-f">
   ${q(i.id,'nome',i.nome,30,'Nome do bichinho')}

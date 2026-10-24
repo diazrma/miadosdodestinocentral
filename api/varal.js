@@ -13,12 +13,16 @@
 // Equipe (menu Publicar ou Posts):
 //   POST { acao: 'fila' }                -> { fila, total } esperando aprovação
 //   POST { acao: 'aprovar', id, ...textos corrigidos } / { acao: 'recusar', id } / { acao: 'remover', id }
+// Reels semanal (lib/varal-post.js, a Milka de exemplo balançando no fio):
+//   GET ?post=1 (Vercel Cron às quintas, Bearer CRON_SECRET) -> publica uma vez por quinta se estiver ligado
+//   POST { acao: 'post_status' | 'post_ligar', ativo | 'post_previa' | 'post_agora' } (equipe com menu Publicar)
 // A foto é refeita aqui (sharp): gira pelo EXIF, reduz para 1000px e sai sem metadados (sem GPS da casa de ninguém).
 const crypto = require('crypto');
 const sharp = require('sharp');
 const blob = require('@vercel/blob');
 const B = { put: (...a) => blob.put(...a), del: (...a) => blob.del(...a) }; // trocável nos testes
-const { rd, PFX, auth } = require('../lib/db');
+const { rd, PFX, auth, dbGet, dbSet } = require('../lib/db');
+const igPost = require('../lib/ig-post');
 const { cred } = require('../lib/blob');
 const email = require('../lib/email');
 
@@ -178,9 +182,50 @@ async function daPessoa(req, b) {
   await tira(req, i);
   return { ok: 1 };
 }
+// Reels de quinta
+const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
+const quinta = d => new Date(d + 'T12:00:00Z').getUTCDay() === 4;
+const cfgPost = async () => ({ ativo: true, ...(await dbGet('varal_post_cfg').catch(() => null) || {}) });
+async function videoNoBlob(req, nome) {
+  const { videoVaral } = require('../lib/varal-post');
+  return B.put(`publicar/${nome}.mp4`, await videoVaral(), { access: 'public', contentType: 'video/mp4', addRandomSuffix: true, ...cred(req) });
+}
+async function postSemanal(req, por, forcar) {
+  const data = hojeBR();
+  if (!forcar && !quinta(data)) return { fora: true, data };
+  if (!forcar && !(await cfgPost()).ativo) return { desligado: true };
+  const ult = await dbGet('varal_post').catch(() => null);
+  if (!forcar && ult && ult.data === data) return { ...ult, repetido: true };
+  const av = require('../lib/avisos'), { legendaDa } = require('../lib/varal-post');
+  let r;
+  try {
+    const up = await videoNoBlob(req, 'varal-' + data);
+    try { r = await igPost.publicarIG({ media_type: 'REELS', video_url: up.url, caption: legendaDa(data), share_to_feed: 'true', thumb_offset: '4500' }); }
+    finally { await B.del(up.url, cred(req)).catch(() => {}); }
+  } catch (e) { await av.falhou('Reels do Varal das Lembranças', e).catch(() => {}); throw e; }
+  await av.publicado('Reels do Varal das Lembranças (Milka)', r).catch(() => {});
+  const reg = { data, ...r, por, quando: new Date().toISOString() };
+  await dbSet('varal_post', reg);
+  return reg;
+}
+async function postEquipe(req, b, a) {
+  if (!a.menus.includes('publicar')) return { code: 403, erro: 'Sem permissão para publicar' };
+  if (b.acao === 'post_ligar') await dbSet('varal_post_cfg', { ...(await cfgPost()), ativo: !!b.ativo });
+  if (b.acao === 'post_previa') {
+    const ant = await dbGet('varal_post_previa').catch(() => null);
+    if (ant && ant.url) await B.del(ant.url, cred(req)).catch(() => {});
+    const up = await videoNoBlob(req, 'varal-previa');
+    await dbSet('varal_post_previa', { url: up.url, quando: new Date().toISOString() });
+  }
+  if (b.acao === 'post_agora') await postSemanal(req, a.u.nome || a.u.email || 'Equipe', true);
+  const { legendaDa } = require('../lib/varal-post');
+  return { cfg: await cfgPost(), ultimo: await dbGet('varal_post').catch(() => null), previa: await dbGet('varal_post_previa').catch(() => null), legenda: legendaDa(hojeBR()) };
+}
+
 async function equipe(req, b) {
   const a = await auth(req);
   if (!a) return { code: 401, erro: 'Faça login' };
+  if (/^post_/.test(b.acao || '')) return postEquipe(req, b, a);
   if (!a.menus.includes('publicar') && !a.menus.includes('posts')) return { code: 403, erro: 'Sem permissão para o varal' };
   if (b.acao === 'fila') {
     const ids = await rd(['ZRANGE', K.fila, 0, 99]) || [];
@@ -211,6 +256,12 @@ async function equipe(req, b) {
 
 module.exports = async (req, res) => {
   try {
+    if (req.method === 'GET' && (req.query || {}).post) {
+      res.setHeader('Cache-Control', 'no-store');
+      const seg = process.env.CRON_SECRET;
+      if (seg && req.headers.authorization !== 'Bearer ' + seg) return res.status(401).json({ erro: 'Não autorizado' });
+      return res.json(await postSemanal(req, 'Agendamento'));
+    }
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300');
       const q = req.query || {};
