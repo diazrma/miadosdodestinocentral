@@ -33,6 +33,9 @@
       "maxDuration": 300,
       "memory": 2048,
       "includeFiles": "{fonts/**,loja-story/**,node_modules/ffmpeg-static/ffmpeg}"
+    },
+    "api/varal.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
