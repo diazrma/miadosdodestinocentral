@@ -41,6 +41,9 @@
     },
     "api/milka-cast.js": {
       "maxDuration": 300
+    },
+    "api/youtube.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
@@ -93,6 +96,10 @@
     {
       "source": "/instagram/retorno",
       "destination": "/api/instagram?retorno=1"
+    },
+    {
+      "source": "/youtube/retorno",
+      "destination": "/api/youtube?retorno=1"
     },
     {
       "source": "/tiktok/retorno",

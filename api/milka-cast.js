@@ -6,14 +6,16 @@
 //   POST type 'blob.generate-presigned-url'      (x-milka-cast)                    -> envio do vídeo direto ao Blob
 //   POST { acao: 'pronto', numero, video_url }   (x-milka-cast)                    -> { ok } espera a hora de publicar
 //   POST { acao: 'descartar', video_url }       (x-milka-cast)                    -> { ok } apaga o vídeo do teste do Actions
-//   GET ?post=1 (Vercel Cron sáb e dom 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story, apaga o vídeo
+//   GET ?post=1 (Vercel Cron sáb e dom 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story (e o Short no
+//                                                     YouTube, se o canal estiver conectado em api/youtube.js), apaga o vídeo
 const { handleUploadPresigned } = require('@vercel/blob/client');
 const blob = require('@vercel/blob');
-const B = { del: (...a) => blob.del(...a), token: (...a) => blob.issueSignedToken(...a) }; // trocável nos testes
+const B = { del: (...a) => blob.del(...a), token: (...a) => blob.issueSignedToken(...a), short: (...a) => yt.enviarShort(...a) }; // trocável nos testes
 const { dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
 const igPost = require('../lib/ig-post');
 const groq = require('../lib/groq');
+const yt = require('../lib/yt');
 
 const CHAVE = 'milka_cast'; // { historico: [{ numero, tema, titulo, data, reel, story }], fila: ep | null }
 const TEMAS = {
@@ -160,10 +162,17 @@ async function publicar(req) {
   try { ep.story = (await igPost.publicarIG({ media_type: 'STORIES', video_url: ep.video_url })).id; }
   catch (e) { erro = e.message; }
   if (erro) { await dbSet(CHAVE, { ...st, fila: ep }); return { reel: ep.reel, erro: 'Story: ' + erro }; }
-  await B.del(ep.video_url, cred(req)).catch(() => {}); // o Instagram já copiou o vídeo
+  // YouTube Shorts: só quando o canal está conectado na aba Conexões; se falhar, o Instagram já saiu e fica registrado
+  let youtube = null, ytErro = null;
+  try {
+    youtube = await B.short({ video_url: ep.video_url, titulo: `Milka Cast #${String(ep.numero).padStart(2, '0')} · ${ep.titulo}`,
+      descricao: legenda(ep), tags: ep.hashtags });
+  } catch (e) { ytErro = e.message; }
+  await B.del(ep.video_url, cred(req)).catch(() => {}); // o Instagram (e o YouTube) já copiaram o vídeo
   const { numero, tema, titulo, tipo, reel, story } = ep;
-  await dbSet(CHAVE, { historico: [...st.historico, { numero, tema, titulo, tipo, data, reel, story }], fila: null });
-  return { reel, story };
+  const reg = { numero, tema, titulo, tipo, data, reel, story, ...(youtube ? { youtube: youtube.link } : {}), ...(ytErro ? { ytErro } : {}) };
+  await dbSet(CHAVE, { historico: [...st.historico, reg], fila: null });
+  return { reel, story, youtube: youtube && youtube.link, ...(ytErro ? { erro: 'YouTube: ' + ytErro } : {}) };
 }
 
 module.exports = async (req, res) => {
