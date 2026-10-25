@@ -12,6 +12,10 @@ on:
         description: 'Só testar (vídeo de exemplo, sobe e apaga, não publica)'
         type: boolean
         default: false
+      refazer:
+        description: 'O episódio de hoje saiu errado: faz de novo e publica na hora (apague o post errado no app)'
+        type: boolean
+        default: false
 
 jobs:
   episodio:
@@ -28,6 +32,6 @@ jobs:
           python-version: '3.12'
       - run: sudo apt-get update -q && sudo apt-get install -y -q ffmpeg
       - run: pip install -q edge-tts pillow
-      - run: python milka-cast/episodio.py ${{ inputs.teste && 'teste' || '' }}
+      - run: python milka-cast/episodio.py ${{ inputs.teste && 'teste' || inputs.refazer && 'refazer' || '' }}
         env:
           MILKA_CAST_SECRET: ${{ secrets.MILKA_CAST_SECRET }}

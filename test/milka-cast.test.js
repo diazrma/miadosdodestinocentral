@@ -1,7 +1,7 @@
 // Milka Cast: datas comemorativas, escolha de tema sem repetir e legenda do reel
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../api/milka-cast').interno;
+const { corrigirNomes, hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../api/milka-cast').interno;
 
 test('datas fixas e móveis', () => {
   assert.equal(comemorativa('2026-10-31'), 'Halloween');
@@ -37,4 +37,14 @@ test('lê o JSON mesmo com texto em volta', () => {
 
 test('hashtag repetida com maiúscula sai uma vez só', () => {
   assert.deepEqual(hashtags(['#MilkaCast', '#MiadosDoDestino', '#Gatos', 'semcerquilha']), ['#milkacast', '#miadosdodestino', '#milka', '#Gatos']);
+});
+
+test('nome errado pela Groq volta a ser o nome certo', () => {
+  assert.equal(corrigirNomes('Oi, aqui é a Milma, e este é o Milma Cast.'), 'Oi, aqui é a Milka, e este é o Milka Cast.');
+  assert.equal(corrigirNomes('#milmacast #Milma #MilmaCast'), '#milkacast #Milka #MilkaCast');
+  assert.equal(corrigirNomes('Merlim e Zeldá com o Queijino'), 'Merlin e Zelda com o Queijinho');
+  assert.equal(corrigirNomes('Hi, I am Milky and this is Milma Cast'), 'Hi, I am Milka and this is Milka Cast');
+  // palavras de verdade e nomes curtos não mexem
+  const ok = 'Mil gatos, milho, Milk, Mila, Malha, Naru, Baek, Spark, Nari, #zeldinha, #podcast, Milka';
+  assert.equal(corrigirNomes(ok), ok);
 });

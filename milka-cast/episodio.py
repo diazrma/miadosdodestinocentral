@@ -5,6 +5,7 @@
 #   python3 episodio.py                       -> episódio do dia: roteiro, vídeo, envio (precisa de MILKA_CAST_SECRET)
 #   python3 episodio.py previa roteiro.json   -> só faz o vídeo de um roteiro salvo, em ./saida (para testar o visual)
 #   python3 episodio.py teste                 -> vídeo de exemplo, sobe para o Blob e apaga (testa o caminho todo sem publicar)
+#   python3 episodio.py refazer               -> o episódio de hoje saiu errado: faz de novo e publica na hora
 import asyncio, json, os, re, subprocess, sys, urllib.request
 from pathlib import Path
 
@@ -197,6 +198,9 @@ if __name__ == '__main__':
         print('vídeo de teste:', url, urllib.request.urlopen(url).status)
         print(central({'acao': 'descartar', 'video_url': url}))
         sys.exit()
+    refazer = sys.argv[1:2] == ['refazer']
+    if refazer:
+        print('refazer:', central({'acao': 'refazer'}))
     r = central({'acao': 'roteiro'})
     ep = r['ep']
     if r.get('pronto'):
@@ -206,3 +210,5 @@ if __name__ == '__main__':
     url = enviar(arq, f'milka-cast/{arq.name}')
     print('vídeo:', url)
     print(central({'acao': 'pronto', 'numero': ep['numero'], 'video_url': url}))
+    if refazer:
+        print('publicado:', central({'acao': 'publicar'}))

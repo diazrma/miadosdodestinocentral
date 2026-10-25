@@ -6,6 +6,9 @@
 //   POST type 'blob.generate-presigned-url'      (x-milka-cast)                    -> envio do vídeo direto ao Blob
 //   POST { acao: 'pronto', numero, video_url }   (x-milka-cast)                    -> { ok } espera a hora de publicar
 //   POST { acao: 'descartar', video_url }       (x-milka-cast)                    -> { ok } apaga o vídeo do teste do Actions
+//   POST { acao: 'refazer' }                     (x-milka-cast)                    -> { ok } tira o episódio de hoje do histórico
+//                                                     para sair de novo (o post errado é apagado à mão no app)
+//   POST { acao: 'publicar' }                    (x-milka-cast)                    -> igual ao cron, mas na hora (usado no refazer)
 //   GET ?post=1 (Vercel Cron sáb e dom 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story (e o Short no
 //                                                     YouTube, se o canal estiver conectado em api/youtube.js), apaga o vídeo
 const { handleUploadPresigned } = require('@vercel/blob/client');
@@ -41,7 +44,8 @@ o lugar dela em branco no desenho. Ela costuma ficar na frente da porta do quart
 Os outros gatos são Naru, Merlin, Spark e Zelda; os humanos são Yoo Nari e o Sr. Baek.
 No Milka Cast ela fala direto com quem ouve, em primeira pessoa, como apresentadora de podcast:
 acolhedora, curiosa, um pouco sapeca, com um toque de saudade. Português do Brasil, frases curtas e fáceis de falar.
-Nada de emoji na fala. Nada de spoiler grande da série. Só fatos verdadeiros sobre gatos.`;
+O nome dela se escreve Milka (M-i-l-k-a), sempre, em português e em inglês: nunca traduza nem adapte (nada de Milky, Milk, Milma).
+O mesmo vale para os outros nomes: Naru, Merlin, Spark, Zelda, Haneul, Yoo Nari, Sr. Baek (Mr. Baek em inglês) e Queijinho. Nada de emoji na fala. Nada de spoiler grande da série. Só fatos verdadeiros sobre gatos.`;
 
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const diaSemana = d => new Date(d + 'T12:00:00Z').getUTCDay();
@@ -94,6 +98,29 @@ async function temaNovo(tipo, historico) {
 const hashtags = extras => ['#milkacast', '#miadosdodestino', '#milka', ...(extras || [])]
   .filter((t, i, a) => /^#\w/.test(t) && a.findIndex(x => x.toLowerCase() === t.toLowerCase()) === i).slice(0, 11);
 
+// a Groq às vezes erra uma letra dos nomes (saiu "Milma" no episódio 2): palavra com maiúscula a uma letra de
+// distância de um nome da série vira o nome certo. Nomes curtos (Naru, Baek, Nari, Spark) ficam de fora: dão falso positivo.
+const NOMES = ['Milka', 'Merlin', 'Zelda', 'Haneul', 'Queijinho'];
+const NAO_SAO_NOMES = new Set(['milk', 'mila', 'marlin']); // "Milky" não está aqui: em inglês também vira Milka
+function umaLetra(a, b) {
+  if (a === b || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i++;
+  return a.slice(i + 1) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i) || a.slice(i) === b.slice(i + 1);
+}
+const nomeCerto = p => NAO_SAO_NOMES.has(p.toLowerCase()) ? null : NOMES.find(n => umaLetra(p.toLowerCase(), n.toLowerCase()));
+// na hashtag o nome vem sozinho ou grudado no "cast" (#milmacast); outras (#zeldinha) não mexe
+function hashtagCerta(corpo) {
+  const [, nome, cast] = corpo.match(/^(.*?)(cast)?$/i);
+  const certo = nomeCerto(nome);
+  if (!certo) return corpo;
+  return (nome[0] === nome[0].toUpperCase() ? certo : certo.toLowerCase()) + (cast || '');
+}
+const corrigirNomes = s => String(s || '').replace(/(#?)(\p{L}+)/gu, (tudo, h, p) => {
+  if (h) return h + hashtagCerta(p);
+  return p[0] === p[0].toUpperCase() && p[0] !== p[0].toLowerCase() ? nomeCerto(p) || p : p;
+});
+
 function json(texto) {
   const m = String(texto).match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Roteiro sem JSON');
@@ -109,11 +136,12 @@ Escreva entre 85 e 110 palavras de fala (uns 40 segundos). Comece com "Oi, aqui 
 ${ep.tipo === 'sabado' ? 'explique o tema com um fato verdadeiro e simples e ligue com a vida dela na casa' : 'conte o momento como lembrança dela, com carinho'},
 e termine chamando para o próximo fim de semana.
 Responda só JSON: {"titulo": "...", "fala": "...", "legenda": "legenda do post em PT, 2 a 3 frases, pode ter 1 ou 2 emojis",
-"legenda_en": "a mesma legenda em inglês", "hashtags": ["#...", até 8]}` }], { temperatura: 0.8 });
+"legenda_en": "a mesma legenda em inglês, com os nomes iguais (Milka continua Milka)", "hashtags": ["#...", até 8]}` }], { temperatura: 0.8 });
   const r = json(texto);
   if (!r.titulo || !r.fala || !r.legenda) throw new Error('Roteiro incompleto');
-  const tags = hashtags(r.hashtags);
-  return { ...ep, titulo: r.titulo, fala: r.fala, legenda: r.legenda, legenda_en: r.legenda_en || '', hashtags: tags };
+  const tags = hashtags((r.hashtags || []).map(corrigirNomes));
+  return { ...ep, titulo: corrigirNomes(r.titulo), fala: corrigirNomes(r.fala), legenda: corrigirNomes(r.legenda),
+    legenda_en: corrigirNomes(r.legenda_en || ''), hashtags: tags };
 }
 
 const legenda = ep => `🎙️ Milka Cast #${String(ep.numero).padStart(2, '0')} · ${ep.titulo}\n\n🇧🇷${ep.legenda}\n\n` +
@@ -148,6 +176,16 @@ async function descartar(req, b) {
   if (!/^https:\/\/[\w.-]+\.blob\.vercel-storage\.com\/milka-cast\/teste-/.test(String(b.video_url || ''))) return { code: 400, erro: 'Só apaga vídeo de teste' };
   await B.del(b.video_url, cred(req));
   return { ok: 1 };
+}
+
+// episódio de hoje saiu errado: guarda o registro em "refeitos" e libera o dia para sair de novo com o mesmo número
+async function refazer() {
+  const st = await estado(), data = hojeBR();
+  const velho = st.historico.find(h => h.data === data);
+  if (!velho && !st.fila) return { code: 409, erro: 'Não tem episódio de hoje para refazer' };
+  await dbSet(CHAVE, { ...st, historico: st.historico.filter(h => h.data !== data), fila: null,
+    refeitos: [...(st.refeitos || []), { ...(velho || st.fila), refeito_em: new Date().toISOString() }] });
+  return { ok: 1, numero: velho ? velho.numero : st.fila.numero };
 }
 
 async function publicar(req) {
@@ -193,10 +231,10 @@ module.exports = async (req, res) => {
         return { token: await B.token({ pathname, operations: ['put'], validUntil: Date.now() + 3600e3, ...lim, ...cred(req) }), urlOptions: { ...lim, addRandomSuffix: true } };
       } }));
     }
-    const acoes = { roteiro, pronto: () => pronto(b), descartar: () => descartar(req, b) };
+    const acoes = { roteiro, pronto: () => pronto(b), descartar: () => descartar(req, b), refazer, publicar: () => publicar(req) };
     if (!acoes[b.acao]) return res.status(400).json({ erro: 'Ação desconhecida' });
     const { code, ...j } = await acoes[b.acao]();
     res.status(code || 200).json(j);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
-module.exports.interno = { hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS, B };
+module.exports.interno = { corrigirNomes, hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS, B };
