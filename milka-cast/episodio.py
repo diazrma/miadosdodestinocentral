@@ -14,7 +14,8 @@ from PIL import Image, ImageDraw, ImageFilter
 PASTA = Path(__file__).resolve().parent
 CENTRAL = os.environ.get('CENTRAL_URL', 'https://miadosdodestinocentral.vercel.app')
 CLIPE = PASTA / 'clipe.mp4'  # a Milka falando no estúdio (Grok, 848x1072, 15 s); aos 6,5 s entra um ratinho na mesa
-FALA_FIM = 6.2              # até aqui ela só fala: esse trecho vai e volta durante o episódio; o resto é o final
+FALA_FIM = 6.2              # até aqui ela só fala: esse trecho vai e volta enquanto a voz dura
+FINAL = 6.8                 # depois da última palavra: o ratinho chega e ela levanta para olhar (6,2 s a 13 s do clipe)
 MIAU = PASTA / 'miau.mp3'   # miado de abertura
 LOGO = PASTA / 'logo.png'   # no estilo da logo do Miados (ouro granulado)
 FONTES = PASTA / 'fontes'
@@ -64,7 +65,7 @@ def _t(s):
     return f'{int(s // 3600)}:{int(s % 3600 // 60):02d}:{s % 60:05.2f}'
 
 
-def legenda_ass(palavras, titulo, numero, dur):
+def legenda_ass(palavras, titulo, numero, dur, fim_fala):
     """Blocos de até 4 palavras; a palavra falada fica dourada."""
     linhas, bloco = [], []
     for p in palavras:
@@ -76,7 +77,7 @@ def legenda_ass(palavras, titulo, numero, dur):
         linhas.append(bloco)
     ev = [f'Dialogue: 0,{_t(0)},{_t(dur)},Ep,,0,0,0,,episódio {numero:02d} · {titulo}']
     for i, bl in enumerate(linhas):
-        fim_bloco = linhas[i + 1][0]['ini'] if i + 1 < len(linhas) else dur
+        fim_bloco = linhas[i + 1][0]['ini'] if i + 1 < len(linhas) else fim_fala  # a legenda some com a voz
         for k, p in enumerate(bl):
             fim = bl[k + 1]['ini'] if k + 1 < len(bl) else fim_bloco
             txt = ' '.join(('{\\c&H4FB8E6&}' + q['p'] + '{\\c&HFFFFFF&}') if q is p else q['p'] for q in bl)
@@ -124,12 +125,9 @@ def mascara(pasta):
 
 
 def fundo(pasta, dur):
-    """A Milka falando durante o episódio e, nos últimos segundos, o ratinho chegando e ela levantando para olhar.
+    """A Milka falando enquanto a voz dura e, só depois da última palavra, o ratinho chegando e ela levantando para olhar.
     O trecho da fala vai e volta (sem emenda) e começa numa fase escolhida para terminar exatamente onde o final começa."""
-    total = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(CLIPE)],
-                                 capture_output=True, text=True, check=True).stdout)
-    final = total - FALA_FIM
-    fala = max(dur - final, 0.1)
+    fala = max(dur - FINAL, 0.1)
     ciclo = 2 * FALA_FIM
     inicio = (FALA_FIM - fala) % ciclo  # o vai e volta termina indo para a frente, no quadro em que o final começa
     base = f"fps={FPS},scale={W}:{ALT_CENA},setsar=1"
@@ -137,7 +135,7 @@ def fundo(pasta, dur):
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(CLIPE), '-filter_complex',
                     f"[0:v]trim=0:{FALA_FIM},setpts=PTS-STARTPTS,{base},split[a][b];[b]reverse[r];[a][r]concat=n=2,"
                     f"loop=loop=-1:size=32767,trim={inicio:.3f}:{inicio + fala:.3f},setpts=PTS-STARTPTS[fala];"
-                    f"[0:v]trim={FALA_FIM}:{total},setpts=PTS-STARTPTS,{base}[fim];[fala][fim]concat=n=2[v]",
+                    f"[0:v]trim={FALA_FIM}:{FALA_FIM + FINAL},setpts=PTS-STARTPTS,{base}[fim];[fala][fim]concat=n=2[v]",
                     '-map', '[v]', '-t', f'{dur:.2f}', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', str(saida)],
                    check=True)
     return saida
@@ -145,9 +143,10 @@ def fundo(pasta, dur):
 
 def video(ep, palavras, pasta):
     palavras = [{**p, 'ini': p['ini'] + ATRASO, 'fim': p['fim'] + ATRASO} for p in palavras]
-    dur = palavras[-1]['fim'] + 1.2
+    fim_fala = palavras[-1]['fim'] + 0.4
+    dur = fim_fala + FINAL
     som = audio(pasta, dur)
-    (pasta / 'legenda.ass').write_text(legenda_ass(palavras, ep['titulo'], ep['numero'], dur))
+    (pasta / 'legenda.ass').write_text(legenda_ass(palavras, ep['titulo'], ep['numero'], dur, fim_fala))
     # fundo: o próprio clipe desfocado; por cima, o clipe nítido com as bordas esfumadas; legenda e onda dourada sobre a mesa
     filtro = (
         f"[0:v]split[c1][c2];"
