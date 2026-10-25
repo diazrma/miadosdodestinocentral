@@ -13,15 +13,15 @@ from PIL import Image, ImageDraw, ImageFilter
 
 PASTA = Path(__file__).resolve().parent
 CENTRAL = os.environ.get('CENTRAL_URL', 'https://miadosdodestinocentral.vercel.app')
-CENA = PASTA / 'cena.png'   # a Milka no estúdio, sem texto (1122x1402)
+CLIPE = PASTA / 'clipe.mp4'  # a Milka falando no estúdio (Grok, 848x1072, 15 s); aos 6,5 s entra um ratinho na mesa
+FALA_FIM = 6.2              # até aqui ela só fala: esse trecho vai e volta durante o episódio; o resto é o final
 MIAU = PASTA / 'miau.mp3'   # miado de abertura
 LOGO = PASTA / 'logo.png'   # no estilo da logo do Miados (ouro granulado)
-RATO = PASTA / 'rato.png'   # ratinho que atravessa a mesa
 FONTES = PASTA / 'fontes'
 VOZ, VELOCIDADE, TOM = 'pt-BR-ThalitaMultilingualNeural', '-8%', '+18Hz'  # "thalita doce"
 ATRASO = 1.3                # a voz entra depois do miado
 W, H, FPS = 1080, 1920, 30
-TOPO_CENA, ALT_CENA = 250, 1350
+TOPO_CENA, ALT_CENA = 250, 1364  # o clipe ocupa 1080x1364 (o x264 pede altura par)
 
 
 def central(corpo):
@@ -123,34 +123,46 @@ def mascara(pasta):
     return pasta / 'mascara.png'
 
 
+def fundo(pasta, dur):
+    """A Milka falando durante o episódio e, nos últimos segundos, o ratinho chegando e ela levantando para olhar.
+    O trecho da fala vai e volta (sem emenda) e começa numa fase escolhida para terminar exatamente onde o final começa."""
+    total = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', str(CLIPE)],
+                                 capture_output=True, text=True, check=True).stdout)
+    final = total - FALA_FIM
+    fala = max(dur - final, 0.1)
+    ciclo = 2 * FALA_FIM
+    inicio = (FALA_FIM - fala) % ciclo  # o vai e volta termina indo para a frente, no quadro em que o final começa
+    base = f"fps={FPS},scale={W}:{ALT_CENA},setsar=1"
+    saida = pasta / 'fundo.mp4'
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(CLIPE), '-filter_complex',
+                    f"[0:v]trim=0:{FALA_FIM},setpts=PTS-STARTPTS,{base},split[a][b];[b]reverse[r];[a][r]concat=n=2,"
+                    f"loop=loop=-1:size=32767,trim={inicio:.3f}:{inicio + fala:.3f},setpts=PTS-STARTPTS[fala];"
+                    f"[0:v]trim={FALA_FIM}:{total},setpts=PTS-STARTPTS,{base}[fim];[fala][fim]concat=n=2[v]",
+                    '-map', '[v]', '-t', f'{dur:.2f}', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', str(saida)],
+                   check=True)
+    return saida
+
+
 def video(ep, palavras, pasta):
     palavras = [{**p, 'ini': p['ini'] + ATRASO, 'fim': p['fim'] + ATRASO} for p in palavras]
     dur = palavras[-1]['fim'] + 1.2
     som = audio(pasta, dur)
     (pasta / 'legenda.ass').write_text(legenda_ass(palavras, ep['titulo'], ep['numero'], dur))
-    n = int(dur * FPS)
-    # o ratinho entra pela esquerda, para na frente da Milka e sai pela direita, pulando de leve enquanto anda
-    t0 = dur * 0.4
-    u = f'(t-{t0:.2f})'
-    rato_x = f"if(lt({u},3.5),-160+{u}*640/3.5,if(lt({u},5),480,480+({u}-5)*760/3.5))"
-    rato_y = f"1150-h-not(between({u},3.5,5))*abs(sin({u}*16))*6"
-    # fundo: a própria cena desfocada; por cima, a cena nítida com zoom lento; legenda e onda dourada sobre a mesa
+    # fundo: o próprio clipe desfocado; por cima, o clipe nítido com as bordas esfumadas; legenda e onda dourada sobre a mesa
     filtro = (
-        f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=30:2,eq=brightness=-0.25,setsar=1[fundo];"
-        f"[0:v]scale={W}:{ALT_CENA},"
-        f"zoompan=z='1.0+0.05*on/{n}':x='iw/2-iw/zoom/2':y='ih/3-ih/zoom/3':d={n}:s={W}x{ALT_CENA}:fps={FPS},setsar=1[nitida];"
-        f"[4:v]format=gray,setsar=1[masc];[nitida][masc]alphamerge[cena];"
+        f"[0:v]split[c1][c2];"
+        f"[c1]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=30:2,eq=brightness=-0.25,setsar=1[fundo];"
+        f"[3:v]format=gray,setsar=1[masc];[c2][masc]alphamerge[cena];"
         f"[1:a]aformat=channel_layouts=mono,showwaves=s=760x90:mode=cline:rate={FPS}:colors=0xE6B84F:scale=sqrt,"
         f"format=rgba,colorchannelmixer=aa=0.85[onda];"
-        f"[2:v]scale=150:-1,format=rgba[rato];[3:v]scale=720:-1,format=rgba[logo];"
-        f"[fundo][cena]overlay=0:{TOPO_CENA}:format=auto[v0];"
-        f"[v0][rato]overlay=x='{rato_x}':y='{rato_y}':enable='between(t,{t0:.2f},{t0 + 8.6:.2f})'[v1];"
+        f"[2:v]scale=720:-1,format=rgba[logo];"
+        f"[fundo][cena]overlay=0:{TOPO_CENA}:format=auto[v1];"
         f"[v1][onda]overlay=(W-w)/2:1330[v2];[v2][logo]overlay=(W-w)/2:80[v3];"
         f"[v3]ass={pasta / 'legenda.ass'}:fontsdir={FONTES},fade=t=in:d=0.4,fade=t=out:st={dur - 0.6}:d=0.6[v]"
     )
     laco = ['-loop', '1', '-framerate', str(FPS)]
     saida = pasta / f"milka-cast-{ep['numero']:02d}.mp4"
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', *laco, '-i', str(CENA), '-i', str(som), *laco, '-i', str(RATO),
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(fundo(pasta, dur)), '-i', str(som),
                     *laco, '-i', str(LOGO), *laco, '-i', str(mascara(pasta)), '-filter_complex', filtro,
                     '-map', '[v]', '-map', '1:a', '-t', f'{dur:.2f}', '-c:v', 'libx264', '-preset', 'medium', '-crf', '21',
                     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', str(saida)], check=True)
