@@ -14,8 +14,10 @@ from PIL import Image, ImageDraw, ImageFilter
 PASTA = Path(__file__).resolve().parent
 CENTRAL = os.environ.get('CENTRAL_URL', 'https://miadosdodestinocentral.vercel.app')
 CLIPE = PASTA / 'clipe.mp4'  # a Milka falando no estúdio (Grok, 848x1072, 15 s); aos 6,5 s entra um ratinho na mesa
-FALA_FIM = 6.2              # até aqui ela só fala: esse trecho vai e volta enquanto a voz dura
-FINAL = 6.8                 # depois da última palavra: o ratinho chega e ela levanta para olhar (6,2 s a 13 s do clipe)
+FALA_FIM = 5.9              # até aqui ela só fala (aos 6 s o ratinho surge no livro): esse trecho vai e volta enquanto a voz dura
+FINAL = 6.8                 # mínimo do final: o ratinho chega e ela levanta para olhar (o clipe tem 9,1 s depois de FALA_FIM)
+RATO = 'Queijinho'          # o ratinho amigo da Milka, que aparece no fim de todo episódio
+DESPEDIDA = f'Ih, olha quem chegou! É o {RATO}, meu amigo. Vou lá brincar com ele!'
 MIAU = PASTA / 'miau.mp3'   # miado de abertura
 LOGO = PASTA / 'logo.png'   # no estilo da logo do Miados (ouro granulado)
 FONTES = PASTA / 'fontes'
@@ -35,11 +37,11 @@ def central(corpo):
         sys.exit(f'Central respondeu {e.code}: {e.read().decode()[:300]}')
 
 
-def voz(texto, pasta):
+def voz(texto, pasta, arquivo='voz.mp3'):
     async def falar():
         com = edge_tts.Communicate(texto, VOZ, rate=VELOCIDADE, pitch=TOM, boundary='WordBoundary')
         palavras = []
-        with open(pasta / 'voz.mp3', 'wb') as f:
+        with open(pasta / arquivo, 'wb') as f:
             async for parte in com.stream():
                 if parte['type'] == 'audio':
                     f.write(parte['data'])
@@ -98,16 +100,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """ + '\n'.join(ev) + '\n'
 
 
-def audio(pasta, dur):
-    """Miado na abertura, a voz logo depois e um ronronado baixo de fundo."""
+def audio(pasta, dur, ini_final):
+    """Miado na abertura, a voz logo depois, a despedida quando o Queijinho chega e um ronronado baixo de fundo."""
     saida = pasta / 'audio.wav'
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(pasta / 'voz.mp3'), '-i', str(MIAU),
                     '-f', 'lavfi', '-t', f'{dur:.2f}', '-i', 'anoisesrc=color=brown:amplitude=0.6:sample_rate=44100',
+                    '-i', str(pasta / 'voz_final.mp3'),
                     '-filter_complex',
                     f"[0]aresample=44100,aformat=channel_layouts=mono,adelay={int(ATRASO * 1000)}[voz];"
+                    f"[3]aresample=44100,aformat=channel_layouts=mono,adelay={int(ini_final * 1000)}[desp];"
                     f"[1]aresample=44100,aformat=channel_layouts=mono,atrim=0:1.4,afade=t=out:st=1.1:d=0.3,volume=0.8[miau];"
                     f"[2]lowpass=f=220,tremolo=f=24:d=0.9,volume=0.18,afade=t=in:d=1.5,afade=t=out:st={dur - 2:.2f}:d=2[ronron];"
-                    f"[miau][voz][ronron]amix=inputs=3:normalize=0:duration=longest,atrim=0:{dur:.2f},loudnorm=I=-16",
+                    f"[miau][voz][desp][ronron]amix=inputs=4:normalize=0:duration=longest,atrim=0:{dur:.2f},loudnorm=I=-16",
                     '-ar', '44100', str(saida)], check=True)
     return saida
 
@@ -124,10 +128,10 @@ def mascara(pasta):
     return pasta / 'mascara.png'
 
 
-def fundo(pasta, dur):
+def fundo(pasta, dur, final):
     """A Milka falando enquanto a voz dura e, só depois da última palavra, o ratinho chegando e ela levantando para olhar.
     O trecho da fala vai e volta (sem emenda) e começa numa fase escolhida para terminar exatamente onde o final começa."""
-    fala = max(dur - FINAL, 0.1)
+    fala = max(dur - final, 0.1)
     ciclo = 2 * FALA_FIM
     inicio = (FALA_FIM - fala) % ciclo  # o vai e volta termina indo para a frente, no quadro em que o final começa
     base = f"fps={FPS},scale={W}:{ALT_CENA},setsar=1"
@@ -135,18 +139,21 @@ def fundo(pasta, dur):
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(CLIPE), '-filter_complex',
                     f"[0:v]trim=0:{FALA_FIM},setpts=PTS-STARTPTS,{base},split[a][b];[b]reverse[r];[a][r]concat=n=2,"
                     f"loop=loop=-1:size=32767,trim={inicio:.3f}:{inicio + fala:.3f},setpts=PTS-STARTPTS[fala];"
-                    f"[0:v]trim={FALA_FIM}:{FALA_FIM + FINAL},setpts=PTS-STARTPTS,{base}[fim];[fala][fim]concat=n=2[v]",
+                    f"[0:v]trim={FALA_FIM}:{FALA_FIM + final},setpts=PTS-STARTPTS,{base}[fim];[fala][fim]concat=n=2[v]",
                     '-map', '[v]', '-t', f'{dur:.2f}', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p', str(saida)],
                    check=True)
     return saida
 
 
-def video(ep, palavras, pasta):
+def video(ep, palavras, despedida, pasta):
     palavras = [{**p, 'ini': p['ini'] + ATRASO, 'fim': p['fim'] + ATRASO} for p in palavras]
-    fim_fala = palavras[-1]['fim'] + 0.4
-    dur = fim_fala + FINAL
-    som = audio(pasta, dur)
-    (pasta / 'legenda.ass').write_text(legenda_ass(palavras, ep['titulo'], ep['numero'], dur, fim_fala))
+    ini_final = palavras[-1]['fim'] + 0.4      # o final (o Queijinho chegando) começa logo depois da última palavra
+    ini_desp = ini_final + 0.3                 # e ela anuncia o amigo enquanto ele sobe no livro
+    despedida = [{**p, 'ini': p['ini'] + ini_desp, 'fim': p['fim'] + ini_desp} for p in despedida]
+    fim_fala = despedida[-1]['fim'] + 0.4
+    dur = max(ini_final + FINAL, fim_fala + 1.5)
+    som = audio(pasta, dur, ini_desp)
+    (pasta / 'legenda.ass').write_text(legenda_ass(palavras + despedida, ep['titulo'], ep['numero'], dur, fim_fala))
     # fundo: o próprio clipe desfocado; por cima, o clipe nítido com as bordas esfumadas; legenda e onda dourada sobre a mesa
     filtro = (
         f"[0:v]split[c1][c2];"
@@ -161,7 +168,7 @@ def video(ep, palavras, pasta):
     )
     laco = ['-loop', '1', '-framerate', str(FPS)]
     saida = pasta / f"milka-cast-{ep['numero']:02d}.mp4"
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(fundo(pasta, dur)), '-i', str(som),
+    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(fundo(pasta, dur, dur - ini_final)), '-i', str(som),
                     *laco, '-i', str(LOGO), *laco, '-i', str(mascara(pasta)), '-filter_complex', filtro,
                     '-map', '[v]', '-map', '1:a', '-t', f'{dur:.2f}', '-c:v', 'libx264', '-preset', 'medium', '-crf', '21',
                     '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '160k', '-movflags', '+faststart', str(saida)], check=True)
@@ -170,7 +177,7 @@ def video(ep, palavras, pasta):
 
 def fazer(ep, pasta):
     pasta.mkdir(parents=True, exist_ok=True)
-    return video(ep, voz(ep['fala'], pasta), pasta)
+    return video(ep, voz(ep['fala'], pasta), voz(DESPEDIDA, pasta, 'voz_final.mp3'), pasta)
 
 
 def enviar(arq, nome):
