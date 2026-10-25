@@ -1,7 +1,7 @@
 // Milka Cast: datas comemorativas, escolha de tema sem repetir e legenda do reel
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../api/milka-cast').interno;
+const { hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../api/milka-cast').interno;
 
 test('datas fixas e móveis', () => {
   assert.equal(comemorativa('2026-10-31'), 'Halloween');
@@ -33,4 +33,8 @@ test('legenda do reel com número, PT, EN e hashtags', () => {
 test('lê o JSON mesmo com texto em volta', () => {
   assert.deepEqual(json('aqui está:\n```json\n{"titulo":"x"}\n```'), { titulo: 'x' });
   assert.throws(() => json('sem nada'));
+});
+
+test('hashtag repetida com maiúscula sai uma vez só', () => {
+  assert.deepEqual(hashtags(['#MilkaCast', '#MiadosDoDestino', '#Gatos', 'semcerquilha']), ['#milkacast', '#miadosdodestino', '#milka', '#Gatos']);
 });

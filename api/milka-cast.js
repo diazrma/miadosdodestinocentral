@@ -88,6 +88,10 @@ async function temaNovo(tipo, historico) {
   return t;
 }
 
+// as fixas primeiro; a Groq às vezes repete as mesmas com maiúscula (#MilkaCast), então compara em minúsculas
+const hashtags = extras => ['#milkacast', '#miadosdodestino', '#milka', ...(extras || [])]
+  .filter((t, i, a) => /^#\w/.test(t) && a.findIndex(x => x.toLowerCase() === t.toLowerCase()) === i).slice(0, 11);
+
 function json(texto) {
   const m = String(texto).match(/\{[\s\S]*\}/);
   if (!m) throw new Error('Roteiro sem JSON');
@@ -106,7 +110,7 @@ Responda só JSON: {"titulo": "...", "fala": "...", "legenda": "legenda do post 
 "legenda_en": "a mesma legenda em inglês", "hashtags": ["#...", até 8]}` }], { temperatura: 0.8 });
   const r = json(texto);
   if (!r.titulo || !r.fala || !r.legenda) throw new Error('Roteiro incompleto');
-  const tags = ['#milkacast', '#miadosdodestino', '#milka', ...(r.hashtags || [])].filter((t, i, a) => /^#\w/.test(t) && a.indexOf(t) === i).slice(0, 11);
+  const tags = hashtags(r.hashtags);
   return { ...ep, titulo: r.titulo, fala: r.fala, legenda: r.legenda, legenda_en: r.legenda_en || '', hashtags: tags };
 }
 
@@ -186,4 +190,4 @@ module.exports = async (req, res) => {
     res.status(code || 200).json(j);
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
-module.exports.interno = { comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS, B };
+module.exports.interno = { hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS, B };
