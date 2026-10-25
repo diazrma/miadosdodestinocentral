@@ -48,7 +48,7 @@ const PADRAO = {
   elenco: { yoonari: { video: 'y41wpQ1wWwc' }, baek: { video: '3hAGMUp8Tns' }, naru: { video: 'dNYaDa8nmfU' }, spark: { video: 'fHOSMOLgbvQ' }, zelda: { video: 'xSp4gPlOcLY' }, merlin: { video: 'p5K0jrwZx-4' }, milka: { video: '' } },
   papeis: [],     // papéis de parede extras enviados pela Central (os do app já vêm dentro dele)
   sussurros: [],  // frases do Sussurro do dia; vazio = as frases que vêm no app
-  recursos: { sussurro: true, quiz: true, papeis: true, sussurroIA: true, sussurroAviso: true },
+  recursos: { sussurro: true, quiz: true, papeis: true, sussurroIA: true, sussurroAviso: true, gazetaAuto: true, gazetaIA: true, gazetaAviso: true },
   // créditos: as fotos vêm do cadastro da Equipe (pessoa ligada pelo id ou pelo primeiro nome)
   creditos: {
     pessoas: [
@@ -156,13 +156,16 @@ module.exports = async (req, res) => {
         elenco: Object.fromEntries(ELENCO_IDS.map(id => [id, { video: ytId(c.elenco?.[id]?.video), foto: https(c.elenco?.[id]?.foto) }])),
         papeis: (Array.isArray(c.papeis) ? c.papeis : []).map(p => ({ id: txt(p.id, 40).replace(/[^\w-]/g, ''), titulo: txt(p.titulo, 40), tipo: ['bloqueio', 'inicio', 'ambos'].includes(p.tipo) ? p.tipo : 'bloqueio', img: https(p.img), mini: https(p.mini) })).filter(p => p.id && p.titulo && p.img).slice(0, 40),
         sussurros: (Array.isArray(c.sussurros) ? c.sussurros : []).map(x => ({ gato: GATOS.includes(x.gato) ? x.gato : 'naru', texto: txt(x.texto, 160).trim() })).filter(x => x.texto).slice(0, 366),
-        recursos: { sussurro: c.recursos?.sussurro !== false, quiz: c.recursos?.quiz !== false, papeis: c.recursos?.papeis !== false, sussurroIA: c.recursos?.sussurroIA !== false, sussurroAviso: c.recursos?.sussurroAviso !== false },
+        recursos: { sussurro: c.recursos?.sussurro !== false, quiz: c.recursos?.quiz !== false, papeis: c.recursos?.papeis !== false, sussurroIA: c.recursos?.sussurroIA !== false, sussurroAviso: c.recursos?.sussurroAviso !== false, gazetaAuto: c.recursos?.gazetaAuto !== false, gazetaIA: c.recursos?.gazetaIA !== false, gazetaAviso: c.recursos?.gazetaAviso !== false },
         creditos: { pessoas: (c.creditos?.pessoas || PADRAO.creditos.pessoas).slice(0, 8).map(p => ({ usuario: txt(p.usuario, 60), busca: txt(p.busca, 30), fotoPropria: https(p.fotoPropria), nome: txt(p.nome, 60), cargo: txt(p.cargo, 60), arroba: txt(p.arroba, 40), texto: txt(p.texto, 500) })).filter(p => p.nome),
           carta: txt(c.creditos?.carta, 2000), agradecimentos: txt(c.creditos?.agradecimentos, 600) },
         site: { apk: https(c.site?.apk), grupo: https(c.site?.grupo), teste: https(c.site?.teste) },
         atualizado: new Date().toISOString(), por: a.u.nome
       };
       if (JSON.stringify(limpo).length > 200000) return res.status(400).json({ erro: 'Conteúdo grande demais' });
+      // a Gazeta mudou no painel: guarda a versão nova no arquivo (a da capa anterior já está lá)
+      const ga = JSON.stringify(salvo.gazeta || {}), gn = JSON.stringify(limpo.gazeta);
+      if (ga !== gn) await require('../lib/gazeta').arquivar({ ...limpo.gazeta, data: undefined }, { origem: 'painel', por: a.u.nome }).catch(() => {});
       await dbSet('app_conteudo', limpo);
       return res.json({ ok: 1, atualizado: limpo.atualizado });
     }
@@ -198,3 +201,4 @@ module.exports = async (req, res) => {
     res.status(400).json({ erro: 'Ação inválida' });
   } catch (e) { res.status(500).json({ erro: e.message }); }
 };
+module.exports.ultimoPost = ultimoPost;
