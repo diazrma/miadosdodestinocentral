@@ -44,9 +44,16 @@
     },
     "api/youtube.js": {
       "maxDuration": 60
+    },
+    "api/gazeta.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
+    {
+      "path": "/api/gazeta",
+      "schedule": "0 11 * * *"
+    },
     {
       "path": "/api/sussurro",
       "schedule": "0 12 * * *"
