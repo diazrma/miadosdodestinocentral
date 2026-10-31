@@ -2,9 +2,11 @@
 // GET com o cabeçalho x-painel-key (PAINEL_KEY na Vercel) ->
 //   { conta, seguidores, seguindo, posts, topMes: { legenda, curtidas, comentarios, views, data, link }, avisos: [] }
 // A cada 50 seguidores novos entra um aviso (a base fica no banco, em "painel_seguidores").
+// GET ?img=1 -> capa do top do mês em RGB565 (96x96, big-endian), pronta para a tela da placa.
 const crypto = require('crypto');
 const { dbGet, dbSet } = require('../lib/db');
 const { igToken } = require('../lib/ig');
+const sharp = require('sharp');
 
 const IG = 'https://graph.instagram.com';
 const PASSO = 50;
@@ -27,7 +29,7 @@ async function postsDoMes() {
   const inicio = new Date();
   inicio.setDate(1);
   inicio.setHours(0, 0, 0, 0);
-  const j = await igGet('/me/media', { fields: 'id,caption,timestamp,permalink,like_count,comments_count', limit: 50 });
+  const j = await igGet('/me/media', { fields: 'id,caption,timestamp,permalink,like_count,comments_count,media_type,media_url,thumbnail_url', limit: 50 });
   return (j.data || []).filter((p) => new Date(p.timestamp) >= inicio);
 }
 
@@ -40,9 +42,31 @@ async function views(id) {
   }
 }
 
+async function capa(post) {
+  const url = post.thumbnail_url || post.media_url;
+  if (!url) return null;
+  const foto = Buffer.from(await (await fetch(url)).arrayBuffer());
+  const { data } = await sharp(foto).resize(96, 96, { fit: 'cover' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const out = Buffer.alloc(96 * 96 * 2);
+  for (let i = 0, o = 0; i < data.length; i += 3, o += 2) {
+    const v = ((data[i] & 0xf8) << 8) | ((data[i + 1] & 0xfc) << 3) | (data[i + 2] >> 3);
+    out[o] = v >> 8;
+    out[o + 1] = v & 0xff;
+  }
+  return out;
+}
+
 module.exports = async (req, res) => {
   if (!autorizado(req)) return res.status(401).json({ erro: 'Chave inválida' });
   try {
+    if (req.query?.img) {
+      const top = (await postsDoMes()).sort((a, b) => (b.like_count || 0) - (a.like_count || 0))[0];
+      const img = top && (await capa(top));
+      if (!img) return res.status(404).json({ erro: 'Sem imagem' });
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Cache-Control', 'no-store');
+      return res.end(img);
+    }
     const me = await igGet('/me', { fields: 'username,followers_count,follows_count,media_count' });
     const posts = await postsDoMes();
     const top = posts.sort((a, b) => (b.like_count || 0) - (a.like_count || 0))[0];
