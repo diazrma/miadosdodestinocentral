@@ -13,7 +13,7 @@
 // Equipe (menu Publicar ou Posts):
 //   POST { acao: 'fila' }                -> { fila, total } esperando aprovação
 //   POST { acao: 'aprovar', id, ...textos corrigidos } / { acao: 'recusar', id } / { acao: 'remover', id }
-// Reels semanal (lib/varal-post.js, a Milka de exemplo balançando no fio):
+// Story semanal (lib/varal-post.js, um gato da série por quinta balançando no fio):
 //   GET ?post=1 (Vercel Cron às quintas, Bearer CRON_SECRET) -> publica uma vez por quinta se estiver ligado
 //   POST { acao: 'post_status' | 'post_ligar', ativo | 'post_previa' | 'post_agora' } (equipe com menu Publicar)
 // A foto é refeita aqui (sharp): gira pelo EXIF, reduz para 1000px e sai sem metadados (sem GPS da casa de ninguém).
@@ -182,13 +182,15 @@ async function daPessoa(req, b) {
   await tira(req, i);
   return { ok: 1 };
 }
-// Reels de quinta
+// Story de quinta
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const quinta = d => new Date(d + 'T12:00:00Z').getUTCDay() === 4;
+// hoje se for quinta, senão a próxima; i = quantas quintas depois
+const proxQuinta = (d, i = 0) => { const t = Date.parse(d + 'T12:00:00Z'); return new Date(t + (((4 - new Date(t).getUTCDay() + 7) % 7) + i * 7) * 864e5).toISOString().slice(0, 10); };
 const cfgPost = async () => ({ ativo: true, ...(await dbGet('varal_post_cfg').catch(() => null) || {}) });
-async function videoNoBlob(req, nome) {
+async function videoNoBlob(req, nome, gato) {
   const { videoVaral } = require('../lib/varal-post');
-  return B.put(`publicar/${nome}.mp4`, await videoVaral(), { access: 'public', contentType: 'video/mp4', addRandomSuffix: true, ...cred(req) });
+  return B.put(`publicar/${nome}.mp4`, await videoVaral(gato), { access: 'public', contentType: 'video/mp4', addRandomSuffix: true, ...cred(req) });
 }
 async function postSemanal(req, por, forcar) {
   const data = hojeBR();
@@ -196,30 +198,32 @@ async function postSemanal(req, por, forcar) {
   if (!forcar && !(await cfgPost()).ativo) return { desligado: true };
   const ult = await dbGet('varal_post').catch(() => null);
   if (!forcar && ult && ult.data === data) return { ...ult, repetido: true };
-  const av = require('../lib/avisos'), { legendaDa } = require('../lib/varal-post');
+  const av = require('../lib/avisos'), gato = require('../lib/varal-post').gatoDa(data);
   let r;
   try {
-    const up = await videoNoBlob(req, 'varal-' + data);
-    try { r = await igPost.publicarIG({ media_type: 'REELS', video_url: up.url, caption: legendaDa(data), share_to_feed: 'true', thumb_offset: '4500' }); }
+    const up = await videoNoBlob(req, 'varal-' + data, gato);
+    try { r = await igPost.publicarIG({ media_type: 'STORIES', video_url: up.url }); }
     finally { await B.del(up.url, cred(req)).catch(() => {}); }
-  } catch (e) { await av.falhou('Reels do Varal das Lembranças', e).catch(() => {}); throw e; }
-  await av.publicado('Reels do Varal das Lembranças (Milka)', r).catch(() => {});
-  const reg = { data, ...r, por, quando: new Date().toISOString() };
+  } catch (e) { await av.falhou('Story do Varal das Lembranças', e).catch(() => {}); throw e; }
+  await av.publicado(`Story do Varal das Lembranças (${gato.nome})`, r).catch(() => {});
+  const reg = { data, gato: gato.nome, ...r, por, quando: new Date().toISOString() };
   await dbSet('varal_post', reg);
   return reg;
 }
 async function postEquipe(req, b, a) {
+  const { gatoDa } = require('../lib/varal-post');
   if (!a.menus.includes('publicar')) return { code: 403, erro: 'Sem permissão para publicar' };
   if (b.acao === 'post_ligar') await dbSet('varal_post_cfg', { ...(await cfgPost()), ativo: !!b.ativo });
   if (b.acao === 'post_previa') {
     const ant = await dbGet('varal_post_previa').catch(() => null);
     if (ant && ant.url) await B.del(ant.url, cred(req)).catch(() => {});
-    const up = await videoNoBlob(req, 'varal-previa');
-    await dbSet('varal_post_previa', { url: up.url, quando: new Date().toISOString() });
+    const gato = gatoDa(proxQuinta(hojeBR())), up = await videoNoBlob(req, 'varal-previa', gato);
+    await dbSet('varal_post_previa', { url: up.url, gato: gato.nome, quando: new Date().toISOString() });
   }
   if (b.acao === 'post_agora') await postSemanal(req, a.u.nome || a.u.email || 'Equipe', true);
-  const { legendaDa } = require('../lib/varal-post');
-  return { cfg: await cfgPost(), ultimo: await dbGet('varal_post').catch(() => null), previa: await dbGet('varal_post_previa').catch(() => null), legenda: legendaDa(hojeBR()) };
+  // gato da próxima quinta (ou de hoje) e das quatro seguintes
+  const prox = Array.from({ length: 5 }, (_, i) => { const d = proxQuinta(hojeBR(), i); return { data: d, gato: gatoDa(d).nome }; });
+  return { cfg: await cfgPost(), ultimo: await dbGet('varal_post').catch(() => null), previa: await dbGet('varal_post_previa').catch(() => null), gatos: prox };
 }
 
 async function equipe(req, b) {
