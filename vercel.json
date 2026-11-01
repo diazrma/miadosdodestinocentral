@@ -92,11 +92,11 @@
     },
     {
       "path": "/api/varal?post=1",
-      "schedule": "0 15 * * 4"
+      "schedule": "0 15 * * 0"
     },
     {
       "path": "/api/milka-cast?post=1",
-      "schedule": "0 20 * * 6,0"
+      "schedule": "0 20 * * 4,6"
     }
   ],
   "rewrites": [

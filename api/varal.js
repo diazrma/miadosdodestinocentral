@@ -13,8 +13,8 @@
 // Equipe (menu Publicar ou Posts):
 //   POST { acao: 'fila' }                -> { fila, total } esperando aprovação
 //   POST { acao: 'aprovar', id, ...textos corrigidos } / { acao: 'recusar', id } / { acao: 'remover', id }
-// Story semanal (lib/varal-post.js, um gato da série por quinta balançando no fio):
-//   GET ?post=1 (Vercel Cron às quintas, Bearer CRON_SECRET) -> publica uma vez por quinta se estiver ligado
+// Story semanal (lib/varal-post.js, um gato da série por domingo balançando no fio):
+//   GET ?post=1 (Vercel Cron aos domingos, Bearer CRON_SECRET) -> publica uma vez por domingo se estiver ligado
 //   POST { acao: 'post_status' | 'post_ligar', ativo | 'post_previa' | 'post_agora' } (equipe com menu Publicar)
 // A foto é refeita aqui (sharp): gira pelo EXIF, reduz para 1000px e sai sem metadados (sem GPS da casa de ninguém).
 const crypto = require('crypto');
@@ -182,11 +182,11 @@ async function daPessoa(req, b) {
   await tira(req, i);
   return { ok: 1 };
 }
-// Story de quinta
+// Story de domingo
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
-const quinta = d => new Date(d + 'T12:00:00Z').getUTCDay() === 4;
-// hoje se for quinta, senão a próxima; i = quantas quintas depois
-const proxQuinta = (d, i = 0) => { const t = Date.parse(d + 'T12:00:00Z'); return new Date(t + (((4 - new Date(t).getUTCDay() + 7) % 7) + i * 7) * 864e5).toISOString().slice(0, 10); };
+const domingo = d => new Date(d + 'T12:00:00Z').getUTCDay() === 0;
+// hoje se for domingo, senão o próximo; i = quantos domingos depois
+const proxDomingo = (d, i = 0) => { const t = Date.parse(d + 'T12:00:00Z'); return new Date(t + (((7 - new Date(t).getUTCDay()) % 7) + i * 7) * 864e5).toISOString().slice(0, 10); };
 const cfgPost = async () => ({ ativo: true, ...(await dbGet('varal_post_cfg').catch(() => null) || {}) });
 async function videoNoBlob(req, nome, gato) {
   const { videoVaral } = require('../lib/varal-post');
@@ -194,7 +194,7 @@ async function videoNoBlob(req, nome, gato) {
 }
 async function postSemanal(req, por, forcar) {
   const data = hojeBR();
-  if (!forcar && !quinta(data)) return { fora: true, data };
+  if (!forcar && !domingo(data)) return { fora: true, data };
   if (!forcar && !(await cfgPost()).ativo) return { desligado: true };
   const ult = await dbGet('varal_post').catch(() => null);
   if (!forcar && ult && ult.data === data) return { ...ult, repetido: true };
@@ -217,12 +217,12 @@ async function postEquipe(req, b, a) {
   if (b.acao === 'post_previa') {
     const ant = await dbGet('varal_post_previa').catch(() => null);
     if (ant && ant.url) await B.del(ant.url, cred(req)).catch(() => {});
-    const gato = gatoDa(proxQuinta(hojeBR())), up = await videoNoBlob(req, 'varal-previa', gato);
+    const gato = gatoDa(proxDomingo(hojeBR())), up = await videoNoBlob(req, 'varal-previa', gato);
     await dbSet('varal_post_previa', { url: up.url, gato: gato.nome, quando: new Date().toISOString() });
   }
   if (b.acao === 'post_agora') await postSemanal(req, a.u.nome || a.u.email || 'Equipe', true);
-  // gato da próxima quinta (ou de hoje) e das quatro seguintes
-  const prox = Array.from({ length: 5 }, (_, i) => { const d = proxQuinta(hojeBR(), i); return { data: d, gato: gatoDa(d).nome }; });
+  // gato do próximo domingo (ou de hoje) e dos quatro seguintes
+  const prox = Array.from({ length: 5 }, (_, i) => { const d = proxDomingo(hojeBR(), i); return { data: d, gato: gatoDa(d).nome }; });
   return { cfg: await cfgPost(), ultimo: await dbGet('varal_post').catch(() => null), previa: await dbGet('varal_post_previa').catch(() => null), gatos: prox };
 }
 

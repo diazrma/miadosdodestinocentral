@@ -13,16 +13,16 @@ test('datas fixas e móveis', () => {
   assert.equal(comemorativa('2026-10-25'), null);
 });
 
-test('sábado é curiosidade, domingo é a série', () => {
+test('sábado é curiosidade, quinta é a série', () => {
   assert.equal(tipoDoDia('2026-10-24'), 'sabado');
-  assert.equal(tipoDoDia('2026-10-25'), 'domingo');
+  assert.equal(tipoDoDia('2026-10-29'), 'quinta');
 });
 
 test('tema nunca repete, mesmo com acento ou maiúscula diferente', () => {
   const h = [{ tema: 'Por que gatos ronronam' }, { tema: 'por que a gente amassa paozinho' }];
   assert.equal(temaDaLista('sabado', h), TEMAS.sabado[2]);
-  const todos = TEMAS.domingo.map(tema => ({ tema }));
-  assert.equal(temaDaLista('domingo', todos), null);
+  const todos = TEMAS.quinta.map(tema => ({ tema }));
+  assert.equal(temaDaLista('quinta', todos), null);
 });
 
 test('legenda do reel com número, PT, EN e hashtags', () => {
