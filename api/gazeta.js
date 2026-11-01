@@ -49,6 +49,7 @@ module.exports = async (req, res) => {
       const dia = await dbGet('gazeta_dia');
       const hoje = dia && dia.data === G.hojeBR();
       const g = hoje ? (await dbGet('app_conteudo')).gazeta : await gerar('Agendamento');
+      if (!hoje) await require('../lib/zap').enfileirar('gazeta', '📰 Gazeta do Destino · ' + G.dataLonga(g.data || G.hojeBR()), g.manchete.titulo + '\n' + G.SITE).catch(() => {});
       let aviso = null;
       if (rec.gazetaAviso !== false && !(hoje && dia.notificado)) aviso = await notificar(g, 'Agendamento').catch(e => 'erro: ' + e.message);
       return res.json({ ok: 1, novo: !hoje, edicao: g.edicao, titulo: g.manchete.titulo, origem: hoje ? dia.origem : g.origem, aviso });
