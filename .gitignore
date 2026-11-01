@@ -1,3 +1,5 @@
 node_modules/
 .vercel
 __pycache__/
+zap/.env
+zap/qrcode*.png

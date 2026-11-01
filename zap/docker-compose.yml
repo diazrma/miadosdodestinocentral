@@ -1,0 +1,22 @@
+# Bigode do Destino: só a ponte. Usa a Evolution API que já roda nesta máquina
+# (projeto ../Evolution API, instância "bigode"). Sobe com: docker compose up -d
+services:
+  bigode:
+    image: node:24-alpine
+    restart: always
+    command: node /app/worker.js
+    environment:
+      CENTRAL_URL: ${CENTRAL_URL}
+      ZAP_KEY: ${ZAP_KEY}
+      EVO_KEY: ${EVO_KEY}
+      EVO_URL: http://evolution_api:8080
+      EVO_INSTANCIA: ${EVO_INSTANCIA:-bigode}
+      ZAP_INTERVALO_MS: ${ZAP_INTERVALO_MS:-3000}
+    volumes:
+      - ./worker.js:/app/worker.js:ro
+    networks:
+      - evolution
+
+networks:
+  evolution:
+    external: true
