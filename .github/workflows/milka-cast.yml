@@ -1,11 +1,11 @@
-# Milka Cast: sábado e domingo de manhã faz o vídeo do episódio (milka-cast/episodio.py) e manda para o Blob.
+# Milka Cast: quinta e sábado de manhã faz o vídeo do episódio (milka-cast/episodio.py) e manda para o Blob.
 # Quem publica é a Central, às 17h de Brasília (cron da Vercel em api/milka-cast.js).
 name: Milka Cast
 
 on:
   schedule:
-    - cron: '0 14 * * 6,0'  # 11h em Brasília
-    - cron: '0 17 * * 6,0'  # 14h, segunda tentativa se a primeira falhar (se o vídeo já está pronto, não refaz)
+    - cron: '0 14 * * 4,6'  # 11h em Brasília
+    - cron: '0 17 * * 4,6'  # 14h, segunda tentativa se a primeira falhar (se o vídeo já está pronto, não refaz)
   workflow_dispatch:
     inputs:
       teste:

@@ -28,7 +28,7 @@ const db = require('../lib/db');
 R.set('mc:users', JSON.stringify([{ id: 'u1', nome: 'Rodrigo', role: 'admin' }]));
 R.set('mc:state', JSON.stringify({ roles: db.ROLES }));
 const TK = 'Bearer ' + db.sign('u1');
-// Story de quinta: vídeo e Instagram simulados
+// Story de domingo: vídeo e Instagram simulados
 const POSTS = [], VIDEOS = [];
 require('../lib/varal-post').videoVaral = async g => { VIDEOS.push(g.nome); return Buffer.from('mp4'); };
 require('../lib/ig-post').publicarIG = async p => { POSTS.push(p); return { id: 'ig' + POSTS.length, link: 'https://instagram.com/p/x' }; };
@@ -170,40 +170,39 @@ test('curtidas, busca e ordem por mais curtidas', async () => {
   assert.equal((await chamar('GET', null, { query: { ordem: 'curtidas' } })).j.itens[0].nome, 'Bolota');
 });
 
-test('Story de quinta: só na quinta, uma vez, respeita o desligar, gato muda por semana; equipe publica e gera prévia', async () => {
+test('Story de domingo: só no domingo, uma vez, respeita o desligar, gato muda por semana; equipe publica e gera prévia', async () => {
   process.env.CRON_SECRET = 'cron-teste';
   const cron = { query: { post: '1' }, auth: 'Bearer cron-teste' };
   assert.equal((await chamar('GET', null, { query: { post: '1' } })).code, 401, 'sem a chave do cron');
-  // quarta 29/10/2026 15h UTC = 12h de Brasília: não posta
-  assert.equal((await emBrasilia('2026-10-28T15:00:00Z', () => chamar('GET', null, cron))).j.fora, true);
-  const q = await emBrasilia('2026-10-29T15:00:00Z', () => chamar('GET', null, cron));
-  assert.equal(q.j.data, '2026-10-29', JSON.stringify(q.j));
+  // sábado 31/10/2026 15h UTC = 12h de Brasília: não posta
+  assert.equal((await emBrasilia('2026-10-31T15:00:00Z', () => chamar('GET', null, cron))).j.fora, true);
+  const q = await emBrasilia('2026-11-01T15:00:00Z', () => chamar('GET', null, cron));
+  assert.equal(q.j.data, '2026-11-01', JSON.stringify(q.j));
   assert.equal(POSTS.length, 1);
   assert.equal(POSTS[0].media_type, 'STORIES');
   assert.equal(POSTS[0].caption, undefined, 'Story não leva legenda');
   assert.equal(q.j.gato, VIDEOS[0]);
-  assert.ok(APAGADAS.some(u => /publicar\/varal-2026-10-29/.test(u)), 'vídeo sai do Blob depois de publicar');
-  assert.equal((await emBrasilia('2026-10-29T18:00:00Z', () => chamar('GET', null, cron))).j.repetido, true);
-  assert.equal(POSTS.length, 1, 'não repete na mesma quinta');
-  // desligado na Central: a quinta seguinte passa em branco
+  assert.ok(APAGADAS.some(u => /publicar\/varal-2026-11-01/.test(u)), 'vídeo sai do Blob depois de publicar');
+  assert.equal((await emBrasilia('2026-11-01T18:00:00Z', () => chamar('GET', null, cron))).j.repetido, true);
+  assert.equal(POSTS.length, 1, 'não repete no mesmo domingo');
+  // desligado na Central: o domingo seguinte passa em branco
   assert.equal((await chamar('POST', { acao: 'post_ligar', ativo: false }, { auth: TK })).j.cfg.ativo, false);
-  assert.equal((await emBrasilia('2026-11-05T15:00:00Z', () => chamar('GET', null, cron))).j.desligado, true);
+  assert.equal((await emBrasilia('2026-11-08T15:00:00Z', () => chamar('GET', null, cron))).j.desligado, true);
   assert.equal(POSTS.length, 1);
-  // publicar agora vale mesmo desligado e fora da quinta; o gato muda de semana para semana
-  const ag = await emBrasilia('2026-10-30T15:00:00Z', () => chamar('POST', { acao: 'post_agora' }, { auth: TK }));
-  assert.equal(ag.j.ultimo.data, '2026-10-30');
+  // publicar agora vale mesmo desligado e fora do domingo; o gato muda de semana para semana
+  const ag = await emBrasilia('2026-11-02T15:00:00Z', () => chamar('POST', { acao: 'post_agora' }, { auth: TK }));
+  assert.equal(ag.j.ultimo.data, '2026-11-02');
   assert.equal(POSTS.length, 2);
   const { gatoDa, GATOS } = require('../lib/varal-post');
-  const cinco = ['2026-10-29', '2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26'].map(d => gatoDa(d).nome);
-  assert.equal(new Set(cinco).size, GATOS.length, 'cinco quintas seguidas, cinco gatos diferentes');
-  assert.equal(gatoDa('2026-12-03').nome, cinco[0], 'depois do quinto volta ao primeiro');
-  assert.equal(gatoDa('2026-11-01').nome, cinco[0], 'domingo ainda é a semana da quinta anterior');
+  const cinco = ['2026-11-01', '2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29'].map(d => gatoDa(d).nome);
+  assert.equal(new Set(cinco).size, GATOS.length, 'cinco domingos seguidos, cinco gatos diferentes');
+  assert.equal(gatoDa('2026-12-06').nome, cinco[0], 'depois do quinto volta ao primeiro');
   for (const g of GATOS) assert.ok(require('fs').existsSync(require('path').join(__dirname, '..', 'varal-post', g.id + '.jpg')), 'foto de ' + g.nome);
-  // domingo 01/11: prévia e lista já mostram o gato da próxima quinta (05/11)
-  const pv = await emBrasilia('2026-11-01T15:00:00Z', () => chamar('POST', { acao: 'post_previa' }, { auth: TK }));
+  // quarta 04/11: prévia e lista já mostram o gato do próximo domingo (08/11)
+  const pv = await emBrasilia('2026-11-04T15:00:00Z', () => chamar('POST', { acao: 'post_previa' }, { auth: TK }));
   assert.match(pv.j.previa.url, /varal-previa/);
   assert.equal(pv.j.previa.gato, cinco[1]);
-  assert.deepEqual(pv.j.gatos.map(g => g.data), ['2026-11-05', '2026-11-12', '2026-11-19', '2026-11-26', '2026-12-03']);
+  assert.deepEqual(pv.j.gatos.map(g => g.data), ['2026-11-08', '2026-11-15', '2026-11-22', '2026-11-29', '2026-12-06']);
   assert.equal(pv.j.gatos[0].gato, cinco[1]);
   assert.equal((await chamar('POST', { acao: 'post_status' })).code, 401);
 });

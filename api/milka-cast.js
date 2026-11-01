@@ -1,7 +1,7 @@
-// Milka Cast: a Milka "apresenta um podcast" todo sábado e domingo; sai às 17h como reel (no feed) e story.
+// Milka Cast: a Milka "apresenta um podcast" toda quinta e sábado; sai às 17h como reel (no feed) e story.
 // O vídeo é feito no GitHub Actions (.github/workflows/milka-cast.yml: voz edge-tts e ffmpeg, pasta milka-cast/).
 // Aqui fica o que precisa do banco: escolher o tema sem nunca repetir, escrever o roteiro (Groq), receber o vídeo
-// no Blob e publicar na hora. Sábado é curiosidade de gato; domingo é a série. Data comemorativa entra de leve.
+// no Blob e publicar na hora. Sábado é curiosidade de gato; quinta é a série. Data comemorativa entra de leve.
 //   POST { acao: 'roteiro' }                     (x-milka-cast: MILKA_CAST_SECRET) -> { ep, pronto } episódio do dia
 //   POST type 'blob.generate-presigned-url'      (x-milka-cast)                    -> envio do vídeo direto ao Blob
 //   POST { acao: 'pronto', numero, video_url }   (x-milka-cast)                    -> { ok } espera a hora de publicar
@@ -9,7 +9,7 @@
 //   POST { acao: 'refazer' }                     (x-milka-cast)                    -> { ok } tira o episódio de hoje do histórico
 //                                                     para sair de novo (o post errado é apagado à mão no app)
 //   POST { acao: 'publicar' }                    (x-milka-cast)                    -> igual ao cron, mas na hora (usado no refazer)
-//   GET ?post=1 (Vercel Cron sáb e dom 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story (e o Short no
+//   GET ?post=1 (Vercel Cron qui e sáb 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story (e o Short no
 //                                                     YouTube, se o canal estiver conectado em api/youtube.js), apaga o vídeo
 const { handleUploadPresigned } = require('@vercel/blob/client');
 const blob = require('@vercel/blob');
@@ -30,9 +30,9 @@ const TEMAS = {
     'por que trazemos presentes para os humanos', 'a língua áspera e o banho de gato', 'por que miamos para humanos',
     'o terceiro olho: a pálpebra escondida', 'por que gostamos de sachê e água corrente', 'como enxergamos no escuro',
   ],
-  domingo: [
+  quinta: [
     'a noite de chuva em que cheguei', 'o lugar em branco no desenho do Haneul', 'por que fico na porta do quarto',
-    'meus irmãos de casa: Naru, Merlin, Spark e Zelda', 'o que é esperar alguém', 'domingo preguiçoso na casa',
+    'meus irmãos de casa: Naru, Merlin, Spark e Zelda', 'o que é esperar alguém', 'tarde preguiçosa na casa',
     'coisas que a gente sente e não sabe dizer', 'o cheiro de casa', 'como escolhi meu lugar no sofá',
     'um recado para quem adotou um gato', 'o que a Yoo Nari me ensinou', 'o jeito calado do Sr. Baek',
     'o primeiro dia de sol depois da chuva', 'o que os gatos lembram', 'por que o destino junta a gente',
@@ -49,7 +49,7 @@ O mesmo vale para os outros nomes: Naru, Merlin, Spark, Zelda, Haneul, Yoo Nari,
 
 const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const diaSemana = d => new Date(d + 'T12:00:00Z').getUTCDay();
-const tipoDoDia = d => diaSemana(d) === 0 ? 'domingo' : 'sabado';
+const tipoDoDia = d => diaSemana(d) === 4 ? 'quinta' : 'sabado';
 const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 // datas que a Milka pode citar de leve; as móveis (Páscoa, Carnaval, Mães, Pais) são calculadas
@@ -134,7 +134,7 @@ async function escrever(ep, historico) {
 Episódios que já saíram (não repita o conteúdo): ${ja || 'nenhum'}.
 Escreva entre 85 e 110 palavras de fala (uns 40 segundos). Comece com "Oi, aqui é a Milka, e este é o Milka Cast" ou uma variação,
 ${ep.tipo === 'sabado' ? 'explique o tema com um fato verdadeiro e simples e ligue com a vida dela na casa' : 'conte o momento como lembrança dela, com carinho'},
-e termine chamando para o próximo fim de semana.
+e termine chamando para o próximo episódio, ${ep.tipo === 'sabado' ? 'na quinta' : 'no sábado'}.
 Responda só JSON: {"titulo": "...", "fala": "...", "legenda": "legenda do post em PT, 2 a 3 frases, pode ter 1 ou 2 emojis",
 "legenda_en": "a mesma legenda em inglês, com os nomes iguais (Milka continua Milka)", "hashtags": ["#...", até 8]}` }], { temperatura: 0.8 });
   const r = json(texto);
@@ -151,7 +151,7 @@ const estado = async () => ({ historico: [], fila: null, ...(await dbGet(CHAVE) 
 
 async function roteiro() {
   const st = await estado(), data = hojeBR();
-  if (![0, 6].includes(diaSemana(data))) return { code: 400, erro: 'O Milka Cast só sai no sábado e no domingo' };
+  if (![4, 6].includes(diaSemana(data))) return { code: 400, erro: 'O Milka Cast só sai na quinta e no sábado' };
   if (st.historico.some(h => h.data === data)) return { code: 409, erro: 'O episódio de hoje já saiu' };
   // o Actions rodou de novo: mesmo roteiro e mesmo número; se o vídeo já chegou, não precisa refazer
   if (st.fila && st.fila.data === data) return { ep: st.fila, pronto: st.fila.estado === 'pronto' };
