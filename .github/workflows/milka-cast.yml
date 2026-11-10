@@ -4,8 +4,8 @@ name: Milka Cast
 
 on:
   schedule:
-    - cron: '0 14 * * 4,6'  # 11h em Brasília
-    - cron: '0 17 * * 4,6'  # 14h, segunda tentativa se a primeira falhar (se o vídeo já está pronto, não refaz)
+    - cron: '0 11 * * 4,6'  # 8h em Brasília (o GitHub costuma atrasar horas; fica folga até a publicação das 17h)
+    - cron: '0 13 * * 4,6'  # 10h, segunda tentativa se a primeira falhar (vídeo pronto, episódio já publicado ou dia errado: sai sem erro)
   workflow_dispatch:
     inputs:
       teste:
