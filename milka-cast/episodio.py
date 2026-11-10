@@ -28,14 +28,18 @@ W, H, FPS = 1080, 1920, 30
 TOPO_CENA, ALT_CENA = 250, 1364  # o clipe ocupa 1080x1364 (o x264 pede altura par)
 
 
-def central(corpo):
+def central(corpo, nada_a_fazer=()):
     req = urllib.request.Request(CENTRAL + '/api/milka-cast', data=json.dumps(corpo).encode(), headers={
         'Content-Type': 'application/json', 'User-Agent': 'milka-cast', 'x-milka-cast': os.environ['MILKA_CAST_SECRET']})
     try:
         with urllib.request.urlopen(req, timeout=120) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
-        sys.exit(f'Central respondeu {e.code}: {e.read().decode()[:300]}')
+        msg = f'Central respondeu {e.code}: {e.read().decode()[:300]}'
+        if e.code in nada_a_fazer:
+            print('nada a fazer:', msg)
+            sys.exit(0)
+        sys.exit(msg)
 
 
 def voz(texto, pasta, arquivo='voz.mp3'):
@@ -201,10 +205,11 @@ if __name__ == '__main__':
     refazer = sys.argv[1:2] == ['refazer']
     if refazer:
         print('refazer:', central({'acao': 'refazer'}))
-    r = central({'acao': 'roteiro'})
+    r = central({'acao': 'roteiro'}, nada_a_fazer=() if refazer else (400, 409))
     ep = r['ep']
     if r.get('pronto'):
-        sys.exit(f"episódio {ep['numero']} já está pronto para as 17h")
+        print(f"episódio {ep['numero']} já está pronto para as 17h")
+        sys.exit(0)
     print(f"episódio {ep['numero']}: {ep['tema']} -> {ep['titulo']}")
     arq = fazer(ep, Path('saida'))
     url = enviar(arq, f'milka-cast/{arq.name}')
