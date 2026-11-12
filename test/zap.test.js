@@ -107,3 +107,32 @@ test('ponte do computador: manda para cada destino, devolve só quem falhou', as
   assert.deepEqual(dev.body.msgs[0].para, ['5547999990000']);
   assert.equal(dev.h['x-zap-key'], 'chave-zap');
 });
+
+test('fila vazia fica na memória e mensagem nova libera na hora', async () => {
+  R.set('mc:zap:fila', []);
+  let lidas = 0;
+  const antes = global.fetch;
+  global.fetch = async (u, o) => { if (u === 'http://redis.test' && JSON.parse(o.body)[0] === 'LPOP') lidas++; return antes(u, o); };
+  try {
+    assert.deepEqual(await Z.puxar(), []);
+    assert.deepEqual(await Z.puxar(), []);
+    assert.equal(lidas, 1, 'a segunda consulta com a fila vazia não vai ao banco');
+    R.set('mc:zap:fila', [JSON.stringify({ id: 'x', texto: 'oi' })]);
+    await Z.devolver([]);  // qualquer escrita na fila desta instância libera a memória
+    assert.equal((await Z.puxar()).length, 1);
+    assert.equal(lidas, 2);
+  } finally { global.fetch = antes; }
+});
+
+test('status igual do bridge não regrava o banco', async () => {
+  const h = { 'x-zap-key': 'chave-zap' }, corpo = { acao: 'status', estado: 'open', numero: '5511', grupos: [] };
+  R.delete('mc:zap:status');
+  assert.equal((await chamar({ method: 'POST', headers: h, body: corpo })).code, 200);
+  const primeiro = R.get('mc:zap:status');
+  assert.ok(primeiro);
+  R.set('mc:zap:status', 'marcado');
+  await chamar({ method: 'POST', headers: h, body: corpo });
+  assert.equal(R.get('mc:zap:status'), 'marcado', 'mesmo status em menos de 30 min não grava');
+  await chamar({ method: 'POST', headers: h, body: { ...corpo, estado: 'close' } });
+  assert.match(R.get('mc:zap:status'), /close/);
+});

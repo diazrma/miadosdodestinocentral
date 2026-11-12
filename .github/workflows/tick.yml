@@ -1,11 +1,11 @@
-# Fila de esperas do bot: chama /api/webhook?tick=1 a cada 5 minutos.
+# Fila de esperas do bot: chama /api/webhook?tick=1 a cada 15 minutos (o banco grátis da Central dorme quando ninguém usa).
 # Saiu do vercel.json porque o plano Hobby da Vercel só aceita cron uma vez por dia.
 # O GitHub costuma atrasar alguns minutos; o QStash (lib/bot.js) e os próprios webhooks da Meta também rodam o tick.
 name: Tick do bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 concurrency:
