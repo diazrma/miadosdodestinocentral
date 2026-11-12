@@ -1,5 +1,5 @@
 const { randomUUID } = require('crypto');
-const { rd, PFX, dbGet, dbSet, hash, check, sign, mac, ROLES } = require('../lib/db');
+const { rd, PFX, temBanco, dbGet, dbSet, hash, check, sign, mac, ROLES } = require('../lib/db');
 const { emailSenha } = require('../lib/email');
 // link de senha nova: assinado, vale 1 h e morre quando a senha muda (leva um pedaço do hash atual)
 const HORA = 3600e3, marca = u => mac('h:' + u.hash).slice(0, 16);
@@ -16,7 +16,7 @@ const SITE = () => process.env.SITE_URL || (process.env.VERCEL_PROJECT_PRODUCTIO
 module.exports = async (req, res) => {
   try {
     if (!process.env.SESSION_SECRET) return res.status(500).json({ erro: 'SESSION_SECRET não configurado na Vercel' });
-    if (!(process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)) return res.status(500).json({ erro: 'Banco de dados (Upstash Redis) não conectado na Vercel' });
+    if (!temBanco()) return res.status(500).json({ erro: 'Banco de dados (Upstash Redis) não conectado na Vercel' });
     const b = req.body || {}, us = await dbGet('users') || [];
     if (b.acao === 'estado') return res.json({ setup: !us.length });
     const email = String(b.email || '').trim().toLowerCase();
