@@ -26,7 +26,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save --ignore-scripts --no-package-lock @vercel/blob@2.8.0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'

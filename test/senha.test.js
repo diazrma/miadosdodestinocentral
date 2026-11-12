@@ -13,7 +13,7 @@ global.fetch = async (u, o) => ({ ok: true, json: async () => {
 const emails = [];
 nodemailer.createTransport = () => ({ sendMail: async m => { emails.push(m); return {}; } });
 const { hash, check, dbGet } = require('../lib/db');
-const auth = require('../api/auth');
+const auth = require('../rotas/auth');
 R.set('mc:users', JSON.stringify([{ id: 'u1', nome: 'Rodrigo Cardoso', email: 'r@x.com', role: 'admin', hash: hash('senha-antiga') }]));
 const chamar = body => new Promise(ok => { const res = { code: 200, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } }; auth({ body }, res); });
 const fichaDo = m => decodeURIComponent(m.text.match(/\?senha=([^\s]+)/)[1]);

@@ -1,9 +1,9 @@
 // Milka Cast: a Milka "apresenta um podcast" toda quinta e sábado; sai às 17h como reel (no feed) e story.
 // O vídeo é feito no GitHub Actions (.github/workflows/milka-cast.yml: voz edge-tts e ffmpeg, pasta milka-cast/).
 // Aqui fica o que precisa do banco: escolher o tema sem nunca repetir, escrever o roteiro (Groq), receber o vídeo
-// no Blob e publicar na hora. Sábado é curiosidade de gato; quinta é a série. Data comemorativa entra de leve.
+// no armazenamento (R2) e publicar na hora. Sábado é curiosidade de gato; quinta é a série. Data comemorativa entra de leve.
 //   POST { acao: 'roteiro' }                     (x-milka-cast: MILKA_CAST_SECRET) -> { ep, pronto } episódio do dia
-//   POST type 'blob.generate-presigned-url'      (x-milka-cast)                    -> envio do vídeo direto ao Blob
+//   POST { acao: 'link_envio', nome }            (x-milka-cast)                    -> { uploadUrl, url } envio direto ao R2
 //   POST { acao: 'pronto', numero, video_url }   (x-milka-cast)                    -> { ok } espera a hora de publicar
 //   POST { acao: 'descartar', video_url }       (x-milka-cast)                    -> { ok } apaga o vídeo do teste do Actions
 //   POST { acao: 'refazer' }                     (x-milka-cast)                    -> { ok } tira o episódio de hoje do histórico
@@ -11,9 +11,8 @@
 //   POST { acao: 'publicar' }                    (x-milka-cast)                    -> igual ao cron, mas na hora (usado no refazer)
 //   GET ?post=1 (Vercel Cron qui e sáb 20h UTC = 17h, Bearer CRON_SECRET)          -> publica reel + story (e o Short no
 //                                                     YouTube, se o canal estiver conectado em api/youtube.js), apaga o vídeo
-const { handleUploadPresigned } = require('@vercel/blob/client');
-const blob = require('@vercel/blob');
-const B = { del: (...a) => blob.del(...a), token: (...a) => blob.issueSignedToken(...a), short: (...a) => yt.enviarShort(...a) }; // trocável nos testes
+const blob = require('../lib/storage');
+const B = { del: (...a) => blob.del(...a), link: (...a) => blob.linkDeEnvio(...a), short: (...a) => yt.enviarShort(...a) }; // trocável nos testes
 const { dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
 const igPost = require('../lib/ig-post');
@@ -166,14 +165,14 @@ async function roteiro() {
 async function pronto(b) {
   const st = await estado();
   if (!st.fila || st.fila.numero !== Number(b.numero)) return { code: 409, erro: 'Esse episódio não está na fila' };
-  if (!/^https:\/\/[\w.-]+\.blob\.vercel-storage\.com\/milka-cast\//.test(String(b.video_url || ''))) return { code: 400, erro: 'Vídeo inválido' };
+  if (!blob.ehNosso(b.video_url, 'milka-cast/')) return { code: 400, erro: 'Vídeo inválido' };
   await dbSet(CHAVE, { ...st, fila: { ...st.fila, video_url: b.video_url, estado: 'pronto' } });
   return { ok: 1 };
 }
 
 // teste do Actions (workflow_dispatch com teste): o vídeo sobe com nome teste-... e é apagado em seguida
 async function descartar(req, b) {
-  if (!/^https:\/\/[\w.-]+\.blob\.vercel-storage\.com\/milka-cast\/teste-/.test(String(b.video_url || ''))) return { code: 400, erro: 'Só apaga vídeo de teste' };
+  if (!blob.ehNosso(b.video_url, 'milka-cast/teste-')) return { code: 400, erro: 'Só apaga vídeo de teste' };
   await B.del(b.video_url, cred(req));
   return { ok: 1 };
 }
@@ -224,12 +223,10 @@ module.exports = async (req, res) => {
     const seg = process.env.MILKA_CAST_SECRET;
     if (!seg || req.headers['x-milka-cast'] !== seg) return res.status(401).json({ erro: 'Não autorizado' });
     const b = req.body || {};
-    if (b.type === 'blob.generate-presigned-url') {
-      return res.json(await handleUploadPresigned({ body: b, request: req, webhookPublicKey: process.env.BLOB_WEBHOOK_PUBLIC_KEY || 'sem-callback', getSignedToken: async pathname => {
-        if (!/^milka-cast\/[\w.-]+\.mp4$/.test(pathname)) throw new Error('Nome de arquivo inválido');
-        const lim = { allowedContentTypes: ['video/mp4'], maximumSizeInBytes: 60 * 1024 * 1024 };
-        return { token: await B.token({ pathname, operations: ['put'], validUntil: Date.now() + 3600e3, ...lim, ...cred(req) }), urlOptions: { ...lim, addRandomSuffix: true } };
-      } }));
+    if (b.acao === 'link_envio') {
+      if (!/^milka-cast\/[\w.-]+\.mp4$/.test(String(b.nome || ''))) return res.status(400).json({ erro: 'Nome de arquivo inválido' });
+      const { uploadUrl, url } = B.link(b.nome);
+      return res.json({ uploadUrl, url });
     }
     const acoes = { roteiro, pronto: () => pronto(b), descartar: () => descartar(req, b), refazer, publicar: () => publicar(req) };
     if (!acoes[b.acao]) return res.status(400).json({ erro: 'Ação desconhecida' });

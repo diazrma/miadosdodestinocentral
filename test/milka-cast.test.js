@@ -1,7 +1,7 @@
 // Milka Cast: datas comemorativas, escolha de tema sem repetir e legenda do reel
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { corrigirNomes, hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../api/milka-cast').interno;
+const { corrigirNomes, hashtags, comemorativa, pascoa, temaDaLista, tipoDoDia, legenda, json, TEMAS } = require('../rotas/milka-cast').interno;
 
 test('datas fixas e móveis', () => {
   assert.equal(comemorativa('2026-10-31'), 'Halloween');

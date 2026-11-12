@@ -11,7 +11,7 @@ global.fetch = async (u, o) => {
 };
 const subidos = [], apagados = [], publicados = [];
 let videoFalha = null, igFalhaVideo = null;
-require.cache[require.resolve('@vercel/blob')] = { exports: { put: async (nome, buf, o) => { subidos.push({ nome, tipo: o.contentType }); return { url: 'https://blob.test/' + nome }; }, del: async u => { apagados.push(u); } } };
+require.cache[require.resolve('../lib/storage')] = { exports: { put: async (nome, buf, o) => { subidos.push({ nome, tipo: o.contentType }); return { url: 'https://blob.test/' + nome }; }, del: async u => { apagados.push(u); } } };
 require.cache[require.resolve('../lib/loja-video')] = { exports: { videoStory: async () => { if (videoFalha) throw new Error(videoFalha); return Buffer.from('mp4'); } } };
 require.cache[require.resolve('../lib/ig-post')] = { exports: { publicarIG: async params => {
   if (params.video_url && igFalhaVideo) throw new Error(igFalhaVideo);

@@ -33,7 +33,7 @@ const POSTS = [], VIDEOS = [];
 require('../lib/varal-post').videoVaral = async g => { VIDEOS.push(g.nome); return Buffer.from('mp4'); };
 require('../lib/ig-post').publicarIG = async p => { POSTS.push(p); return { id: 'ig' + POSTS.length, link: 'https://instagram.com/p/x' }; };
 require('../lib/avisos').publicado = async () => {};
-const varal = require('../api/varal');
+const varal = require('../rotas/varal');
 const { textos, foto, B, email } = varal.interno;
 const EMAILS = [];
 email.enviar = async m => { EMAILS.push(m); return { ok: 1 }; };

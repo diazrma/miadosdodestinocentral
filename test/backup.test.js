@@ -24,7 +24,7 @@ global.fetch = async (u, o) => {
   const b = JSON.parse(o.body);
   return { ok: true, json: async () => String(u).endsWith('/pipeline') ? b.map(c => ({ result: redis(c) })) : { result: redis(b) } };
 };
-const { montar, aplicar, cifrar, decifrar } = require('../api/backup').interno;
+const { montar, aplicar, cifrar, decifrar } = require('../rotas/backup').interno;
 test('backup e restauração completos', async () => {
   R.set('mc:bot:autos', JSON.stringify([{ id: 'desenho' }]));
   R.set('mc:ct:u1', JSON.stringify({ id: 'u1', campos: { email: 'a@b.c' } }));

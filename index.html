@@ -422,7 +422,7 @@ function addR(){const n=$('#nr').value.trim();if(!n)return;RD.push({id:'',nome:n
 async function saveR(){try{await api('/api/app',{acao:'salvar_roles',roles:RD});RD=null;await refresh();render();alert('Perfis salvos.')}catch(e){alert(e.message)}}
 // ---- publicar (foto, carrossel, vídeo/Reels) com editor, montagem de vídeo e rascunhos
 document.head.insertAdjacentHTML('beforeend','<style>.pth{position:relative;width:84px;height:84px;border-radius:10px;overflow:hidden;border:2px solid var(--bd);cursor:pointer;flex:none;background:var(--bd)}.pth.on{border-color:var(--gd)}.pth canvas,.pth img,.pth video{width:100%;height:100%;object-fit:cover;display:block}.pth .b{position:absolute;bottom:2px;left:2px;right:2px;display:flex;gap:2px;justify-content:flex-end}.pth .b button{padding:0 6px;font-size:12px;border-radius:6px}.pth .tg{position:absolute;top:2px;left:4px}.pad{display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mut);border-style:dashed}.pdrop{display:block;border:2px dashed var(--bd);border-radius:14px;padding:26px;text-align:center;cursor:pointer;color:var(--mut)}.pdrop:hover,.pad:hover{border-color:var(--gd)}.ped{display:grid;gap:16px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}@media(max-width:700px){.ped{grid-template-columns:1fr}}.ped>canvas,.ped>video,.ped>img{width:100%;max-width:440px;border-radius:12px;background:#000;display:block}.ped label{display:grid;gap:2px;font-size:13px;color:var(--mut)}input[type=range]{padding:0;width:100%;accent-color:var(--gd)}.prt{width:56px;height:56px;border-radius:8px;object-fit:cover;flex:none!important}</style>');
-let PB,RS=null,BL;
+let PB,RS=null;
 const FL={normal:['Normal',''],vivido:['Vívido','saturate(1.35) contrast(1.08)'],quente:['Quente','sepia(.28) saturate(1.25)'],frio:['Frio','hue-rotate(-12deg) saturate(.85) brightness(1.04)'],pb:['P&B','grayscale(1) contrast(1.1)'],retro:['Retrô','sepia(.5) contrast(.92) brightness(1.06)']};
 const TR={corte:'✂️ Corte seco',fade:'🌫️ Esmaecer',preto:'⬛ Escurecer',deslizar:'➡️ Deslizar',zoom:'🔍 Zoom'};
 const PT={foto:'🖼️ Foto',carrossel:'🎞️ Carrossel',reels:'🎬 Vídeo/Reels',story:'📱 Story'},CF='filter' in CanvasRenderingContext2D.prototype,slp=t=>new Promise(r=>setTimeout(r,t));
@@ -512,11 +512,11 @@ async function pGera(){PB.run=1;render();try{await pMontar();pMsg('✅ Vídeo fi
 const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
 async function blobUp(f,ext,onp){const nome='publicar/'+Date.now()+'.'+ext;
  if(ext=='jpg'&&f.size<2.5e6){onp(50);const r=await api('/api/upload',{acao:'enviar',nome,dados:await b64(f)});onp(100);return r.url}
- BL=BL||await import('https://esm.sh/@vercel/blob@2.8.0/client');const r=await api('/api/upload',{nome}),ab=new AbortController();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)ab.abort()},3e3);
- const o={access:'public',contentType:f.type,abortSignal:ab.signal,onUploadProgress:e=>{last=Date.now();onp(e.percentage)}};
- try{return(r.clientToken?await BL.put(nome,f,{...o,token:r.clientToken,multipart:f.size>20e6}):await BL.uploadPresigned(nome,f,{...o,handleUploadUrl:'/api/upload',headers:{Authorization:'Bearer '+(localStorage.getItem('mtk')||'')}})).url}
- catch(e){const d=await api('/api/upload',{acao:'teste'}).then(()=>'',x=>x.message);throw new Error('Envio do vídeo falhou'+(d?': '+d:ab.signal.aborted?' (sem resposta do Vercel Blob por 45 s). Verifique a internet e tente de novo.':': '+e.message))}
- finally{clearInterval(wd)}}
+ const tipo=f.type||(ext=='mov'?'video/quicktime':ext=='mp4'?'video/mp4':'image/jpeg'),r=await api('/api/upload',{nome,tipo});
+ try{await new Promise((ok,no)=>{const x=new XMLHttpRequest();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)x.abort()},3e3),sai=g=>()=>{clearInterval(wd);g()};
+  x.open('PUT',r.uploadUrl);x.setRequestHeader('Content-Type',tipo);x.upload.onprogress=e=>{last=Date.now();if(e.lengthComputable)onp(e.loaded/e.total*100)};
+  x.onload=sai(()=>x.status<300?ok():no(new Error('o armazenamento respondeu '+x.status)));x.onerror=sai(()=>no(new Error('falha de rede')));x.onabort=sai(()=>no(new Error('sem resposta do armazenamento por 45 s. Verifique a internet e tente de novo.')));x.send(f)});return r.url}
+ catch(e){const d=await api('/api/upload',{acao:'teste'}).then(()=>'',x=>x.message);throw new Error('Envio do vídeo falhou: '+(d||e.message))}}
 async function pWait(ids){for(let k=0;k<200;k++){const v=Object.values((await api('/api/publicar',{acao:'status',ids})).st),e=v.find(x=>x.code=='ERROR'||x.code=='EXPIRED');
  if(e)throw new Error('O Instagram recusou o arquivo'+(e.msg?' ('+e.msg+')':'')+'. Confira formato, proporção e duração.');if(v.every(x=>x.code=='FINISHED'||x.code=='PUBLISHED'))return;
  pMsg('⏳ O Instagram está processando'+(PB.it.some(x=>x.vid)?' o vídeo':'')+'… '+k*3+' s');await slp(3000)}throw new Error('O Instagram demorou demais para processar. Tente de novo.')}

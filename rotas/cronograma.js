@@ -1,11 +1,11 @@
 // Cronograma de postagens: itens por mês (crono:AAAA-MM) com data, hora, tipo, status, título, descrição e imagem (Blob, pasta crono/)
 const { randomUUID } = require('crypto');
-const { del } = require('@vercel/blob');
+const { del, ehNosso } = require('../lib/storage');
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
 const { enviarCronograma } = require('../lib/email');
 const MES = /^\d{4}-\d{2}$/, DIA = /^\d{4}-\d{2}-\d{2}$/, TIPOS = ['post', 'reels', 'carrossel', 'story'], STATUS = ['ideia', 'pronto', 'postado'];
-const BLOB = u => /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/crono\//i.test(String(u || ''));
+const BLOB = u => ehNosso(u, 'crono/');
 const S = (v, n) => String(v ?? '').slice(0, n);
 const ordem = (x, y) => (x.data + (x.hora || '99')).localeCompare(y.data + (y.hora || '99'));
 // GET ?img=<url>: repassa a foto do Instagram (só hosts do CDN da Meta) para o navegador poder desenhá-la no canvas
