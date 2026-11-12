@@ -22,7 +22,7 @@ global.fetch = async (u, o = {}) => {
 };
 let evoFalsa = async () => ({ j: {} });
 require.cache[require.resolve('../lib/fcm')] = { exports: { enviarPush: async () => 'id' } };
-const Z = require('../lib/zap'), av = require('../lib/avisos'), api = require('../api/zap'), { sign } = require('../lib/db');
+const Z = require('../lib/zap'), av = require('../lib/avisos'), api = require('../rotas/zap'), { sign } = require('../lib/db');
 const set = (k, v) => R.set('mc:' + k, JSON.stringify(v));
 const fila = () => L('mc:zap:fila').map(m => JSON.parse(m));
 const G1 = { id: '120363000000000001@g.us', nome: 'Equipe Miados' };

@@ -19,7 +19,7 @@
 // A foto é refeita aqui (sharp): gira pelo EXIF, reduz para 1000px e sai sem metadados (sem GPS da casa de ninguém).
 const crypto = require('crypto');
 const sharp = require('sharp');
-const blob = require('@vercel/blob');
+const blob = require('../lib/storage');
 const B = { put: (...a) => blob.put(...a), del: (...a) => blob.del(...a) }; // trocável nos testes
 const { rd, PFX, auth, dbGet, dbSet } = require('../lib/db');
 const igPost = require('../lib/ig-post');

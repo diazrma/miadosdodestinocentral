@@ -1,52 +1,8 @@
 {
   "functions": {
-    "api/sync.js": {
-      "maxDuration": 60
-    },
-    "api/publicar.js": {
-      "maxDuration": 60
-    },
-    "api/sussurro.js": {
-      "maxDuration": 60,
-      "includeFiles": "{fonts,sussurro}/**"
-    },
-    "api/meme.js": {
-      "maxDuration": 60
-    },
-    "api/redes.js": {
-      "maxDuration": 60
-    },
-    "api/backup.js": {
-      "maxDuration": 60
-    },
-    "api/webhook.js": {
-      "maxDuration": 60
-    },
-    "api/bot.js": {
-      "maxDuration": 60
-    },
-    "api/teste-app.js": {
-      "maxDuration": 60,
-      "includeFiles": "{fonts,teste-app}/**"
-    },
-    "api/loja.js": {
+    "api/[rota].js": {
       "maxDuration": 300,
-      "memory": 2048,
-      "includeFiles": "{fonts/**,loja-story/**,node_modules/ffmpeg-static/ffmpeg}"
-    },
-    "api/varal.js": {
-      "maxDuration": 300,
-      "memory": 2048,
-      "includeFiles": "{fonts/**,varal-post/**,node_modules/ffmpeg-static/ffmpeg}"
-    },
-    "api/milka-cast.js": {
-      "maxDuration": 300
-    },
-    "api/youtube.js": {
-      "maxDuration": 60
-    },
-    "api/gazeta.js": {
-      "maxDuration": 60
+      "includeFiles": "{fonts/**,sussurro/**,teste-app/**,loja-story/**,varal-post/**,node_modules/ffmpeg-static/ffmpeg}"
     }
   },
   "crons": [
@@ -73,10 +29,6 @@
     {
       "path": "/api/backup",
       "schedule": "0 6 * * *"
-    },
-    {
-      "path": "/api/webhook?tick=1",
-      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/teste-app",

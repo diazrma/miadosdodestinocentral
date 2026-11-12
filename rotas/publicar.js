@@ -1,10 +1,10 @@
 const { randomUUID } = require('crypto');
-const { del } = require('@vercel/blob');
+const { del, ehNosso } = require('../lib/storage');
 const { auth, dbGet, dbSet } = require('../lib/db');
 const { cred } = require('../lib/blob');
 const { igToken } = require('../lib/ig');
 const G = 'https://graph.instagram.com';
-const BLOB = u => /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\//i.test(String(u || ''));
+const BLOB = u => ehNosso(u);
 function amigavel(e) {
   const m = e.error_user_msg || e.message || '', c = e.code;
   if (c === 190) return 'O token do Instagram expirou ou é inválido. Conecte o Instagram de novo na aba Dados.';

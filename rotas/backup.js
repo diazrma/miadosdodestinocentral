@@ -5,7 +5,7 @@
 // POST { acao: 'restaurar', backup } + x-backup-key -> grava os dados de volta no banco
 // POST { acao: 'arquivos' } (administrador logado)   -> lista o que existe no Blob
 const crypto = require('crypto');
-const { put, list, del } = require('@vercel/blob');
+const { put, list, del, ehNosso } = require('../lib/storage');
 const { rd, PFX, auth } = require('../lib/db');
 const { cred } = require('../lib/blob');
 
@@ -110,7 +110,7 @@ module.exports = async (req, res) => {
     if (b.acao === 'agora') return res.json(await salvarNoBlob(req));
     if (b.acao === 'restaurar_arquivo') {
       const u = new URL(String(b.url || ''));
-      if (!/\.public\.blob\.vercel-storage\.com$/.test(u.hostname) || !u.pathname.startsWith('/backups/')) return res.status(400).json({ erro: 'Arquivo de backup inválido' });
+      if (!ehNosso(u.href, 'backups/')) return res.status(400).json({ erro: 'Arquivo de backup inválido' });
       const d = decifrar(await (await fetch(u)).json());
       const antes = await salvarNoBlob(req); // cópia do estado atual antes de sobrescrever
       return res.json({ ok: 1, restauradas: await aplicar(d), de: d.em, copiaAntes: antes.arquivo });

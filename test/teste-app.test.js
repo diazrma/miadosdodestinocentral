@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
-const { interno: { POSTS, CHAMADAS, doDia, arte } } = require('../api/teste-app');
+const { interno: { POSTS, CHAMADAS, doDia, arte } } = require('../rotas/teste-app');
 const sharp = require('sharp');
 test('8 telas de story no repositório', () => {
   assert.equal(POSTS.length, 8);

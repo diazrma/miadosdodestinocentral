@@ -16,7 +16,7 @@ function redis([cmd, k, ...a]) {
   throw new Error('não simulado: ' + cmd);
 }
 global.fetch = async (u, o) => ({ ok: true, json: async () => ({ result: redis(JSON.parse(o.body)) }) });
-const jogo = require('../api/jogo');
+const jogo = require('../rotas/jogo');
 const { token, abre, confere, limpa, MAX_FASE } = jogo.interno;
 const chamar = (method, body, ip = '1.2.3.4') => new Promise(ok => { const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } }; jogo({ method, body, headers: { 'x-forwarded-for': ip } }, res); });
 

@@ -13,7 +13,7 @@ const db = new Map([
 global.fetch = async (u, o) => ({ ok: true, json: async () => { const [cmd, k] = JSON.parse(o.body); return { result: cmd === 'GET' ? db.get(k) ?? null : 'OK' }; } });
 const { sign } = require('../lib/db');
 const { interno } = require('../lib/email');
-const crono = require('../api/cronograma');
+const crono = require('../rotas/cronograma');
 const jpg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]).toString('base64');
 const chamar = body => new Promise(ok => { const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } }; crono({ method: 'POST', body, headers: { authorization: 'Bearer ' + sign('u1') }, query: {} }, res); });
 

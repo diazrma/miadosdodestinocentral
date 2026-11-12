@@ -56,7 +56,7 @@ global.fetch = async (u, o = {}) => {
 };
 const { dbSet, dbGet } = require('../lib/db');
 const B = require('../lib/bot');
-const webhook = require('../api/webhook');
+const webhook = require('../rotas/webhook');
 const ME = '1784000';
 const comentario = (id, from, text, media = 'p1') => ({ object: 'instagram', entry: [{ id: ME, changes: [{ field: 'comments', value: { id, text, from: { id: from, username: 'ana.gatos' }, media: { id: media } } }] }] });
 const dm = (from, message, extra) => ({ object: 'instagram', entry: [{ id: ME, messaging: [{ sender: { id: from }, recipient: { id: ME }, timestamp: Date.now(), message: { mid: 'in' + ++mid, ...message }, ...extra }] }] });

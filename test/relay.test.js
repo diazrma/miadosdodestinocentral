@@ -5,7 +5,7 @@ const nodemailer = require('nodemailer');
 Object.assign(process.env, { GMAIL_USER: 'central@gmail.com', GMAIL_APP_PASSWORD: 'x', RELAY_KEY: 'chave-de-teste', RELAY_PARA: 'ana@x.com, outra@x.com' });
 const enviados = [];
 nodemailer.createTransport = () => ({ sendMail: async m => { enviados.push(m); return { accepted: [m.to] }; } });
-const relay = require('../api/relay');
+const relay = require('../rotas/relay');
 const chamar = (body, chave = 'chave-de-teste', method = 'POST') => new Promise(ok => {
   const res = { code: 200, setHeader() {}, status(c) { this.code = c; return this; }, json(j) { ok({ code: this.code, j }); } };
   relay({ method, body, headers: { 'x-relay-key': chave }, query: {} }, res);
