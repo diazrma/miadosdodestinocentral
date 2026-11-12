@@ -1,9 +1,9 @@
 // Milka Cast: a Milka "apresenta um podcast" toda quinta e sábado; sai às 17h como reel (no feed) e story.
 // O vídeo é feito no GitHub Actions (.github/workflows/milka-cast.yml: voz edge-tts e ffmpeg, pasta milka-cast/).
 // Aqui fica o que precisa do banco: escolher o tema sem nunca repetir, escrever o roteiro (Groq), receber o vídeo
-// no armazenamento (R2) e publicar na hora. Sábado é curiosidade de gato; quinta é a série. Data comemorativa entra de leve.
+// no armazenamento (Supabase) e publicar na hora. Sábado é curiosidade de gato; quinta é a série. Data comemorativa entra de leve.
 //   POST { acao: 'roteiro' }                     (x-milka-cast: MILKA_CAST_SECRET) -> { ep, pronto } episódio do dia
-//   POST { acao: 'link_envio', nome }            (x-milka-cast)                    -> { uploadUrl, url } envio direto ao R2
+//   POST { acao: 'link_envio', nome }            (x-milka-cast)                    -> { uploadUrl, url } envio direto ao Supabase
 //   POST { acao: 'pronto', numero, video_url }   (x-milka-cast)                    -> { ok } espera a hora de publicar
 //   POST { acao: 'descartar', video_url }       (x-milka-cast)                    -> { ok } apaga o vídeo do teste do Actions
 //   POST { acao: 'refazer' }                     (x-milka-cast)                    -> { ok } tira o episódio de hoje do histórico
@@ -225,7 +225,7 @@ module.exports = async (req, res) => {
     const b = req.body || {};
     if (b.acao === 'link_envio') {
       if (!/^milka-cast\/[\w.-]+\.mp4$/.test(String(b.nome || ''))) return res.status(400).json({ erro: 'Nome de arquivo inválido' });
-      const { uploadUrl, url } = B.link(b.nome);
+      const { uploadUrl, url } = await B.link(b.nome);
       return res.json({ uploadUrl, url });
     }
     const acoes = { roteiro, pronto: () => pronto(b), descartar: () => descartar(req, b), refazer, publicar: () => publicar(req) };

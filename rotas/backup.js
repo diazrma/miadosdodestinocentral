@@ -104,7 +104,7 @@ module.exports = async (req, res) => {
     const a = await auth(req);
     if (!a || !a.role?.admin) return res.status(403).json({ erro: 'Só administradores' });
     if (b.acao === 'arquivos') {
-      const { blobs } = await list({ limit: 1000, ...cred(req) });
+      const { blobs } = await list({ prefix: 'backups/', limit: 1000, ...cred(req) });
       return res.json({ arquivos: blobs.map(x => ({ caminho: x.pathname, tamanho: x.size, em: x.uploadedAt, url: x.url })) });
     }
     if (b.acao === 'agora') return res.json(await salvarNoBlob(req));

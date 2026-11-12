@@ -1,4 +1,4 @@
-// Manda o vídeo do Milka Cast direto para o armazenamento (Cloudflare R2), com o link assinado que a Central gera
+// Manda o vídeo do Milka Cast direto para o armazenamento (Supabase), com o link assinado que a Central gera
 // (api/milka-cast.js, acao 'link_envio').
 //   node enviar.js arquivo.mp4 milka-cast/milka-cast-07.mp4  -> imprime a URL pública
 const fs = require('fs');
