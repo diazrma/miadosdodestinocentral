@@ -6,11 +6,11 @@
 // POST { acao: 'arquivos' } (administrador logado)   -> lista o que existe no Blob
 const crypto = require('crypto');
 const { put, list, del, ehNosso } = require('../lib/storage');
-const { rd, PFX, auth } = require('../lib/db');
+const { rd, pipe, PFX, auth } = require('../lib/db');
 const { cred } = require('../lib/blob');
 
 // variáveis que a Central usa (só os nomes vão para o backup)
-const VARS = ['KV_REST_API_URL', 'KV_REST_API_TOKEN', 'KV_REST_API_READ_ONLY_TOKEN', 'KV_URL', 'REDIS_URL', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
+const VARS = ['CENTRAL_REDIS_URL', 'KV_REST_API_URL', 'KV_REST_API_TOKEN', 'KV_REST_API_READ_ONLY_TOKEN', 'KV_URL', 'REDIS_URL', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
   'SESSION_SECRET', 'CRON_SECRET', 'BACKUP_KEY', 'DB_PREFIX', 'BLOB_STORE_ID', 'BLOB_READ_WRITE_TOKEN', 'IG_TOKEN', 'IG_APP_ID', 'IG_APP_SECRET', 'FCM_SERVICE_ACCOUNT', 'GROQ_API_KEY', 'GROQ_MODEL',
   'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN', 'POLLINATIONS_KEY', 'TIKTOK_CLIENT_KEY', 'TIKTOK_CLIENT_SECRET', 'TIKTOK_PROD_CLIENT_KEY', 'TIKTOK_PROD_CLIENT_SECRET'];
 const MANTER = 14;
@@ -30,15 +30,6 @@ function decifrar(b) {
   return JSON.parse(Buffer.concat([d.update(Buffer.from(b.dados, 'base64')), d.final()]).toString());
 }
 
-// várias chamadas ao Redis numa requisição só (Upstash /pipeline)
-async function pipe(cmds) {
-  const out = [];
-  for (let i = 0; i < cmds.length; i += 200) {
-    const r = await fetch((process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) + '/pipeline', { method: 'POST', headers: { Authorization: 'Bearer ' + (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN) }, body: JSON.stringify(cmds.slice(i, i + 200)) });
-    out.push(...(await r.json()).map(x => x.result));
-  }
-  return out;
-}
 // chaves temporárias das automações (deduplicação de eventos etc.) não entram
 const TEMP = /^(ev:|sent:|asn:|tick:)/;
 async function montar() {
