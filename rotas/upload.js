@@ -1,8 +1,8 @@
-// Envio de mídia do painel para o Cloudflare R2 (lib/storage.js).
+// Envio de mídia do painel para o Supabase Storage (lib/storage.js). Até 50 MB por arquivo (plano gratuito).
 //   POST { nome, tipo }                 -> { uploadUrl, url } link assinado: o navegador manda o arquivo com PUT direto
-//                                          para o R2 (vídeos grandes não passam pela função da Vercel)
+//                                          para o Supabase (vídeos não passam pela função da Vercel)
 //   POST { acao: 'enviar', nome, dados } -> { url } JPG pequeno em base64, gravado pela própria função
-//   POST { acao: 'teste' }               -> { ok } confere se o R2 responde
+//   POST { acao: 'teste' }               -> { ok } confere se o armazenamento responde
 const { put, linkDeEnvio, teste } = require('../lib/storage');
 const { auth } = require('../lib/db');
 const TIPOS = ['image/jpeg', 'video/mp4', 'video/quicktime'], OK = n => /^(publicar|app|crono)\/[\w.-]+$/.test(n);
@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
       catch (e) { return res.status(500).json({ erro: 'Armazenamento: ' + e.message }); }
     }
     if (!TIPOS.includes(b.tipo)) return res.status(400).json({ erro: 'Tipo de arquivo não aceito' });
-    const { uploadUrl, url } = linkDeEnvio(nome);
+    const { uploadUrl, url } = await linkDeEnvio(nome);
     res.json({ uploadUrl, url });
   } catch (e) { res.status(500).json({ erro: 'Armazenamento: ' + e.message }); }
 };

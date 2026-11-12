@@ -446,7 +446,7 @@ function pCnt(){const e=$('#pcnt');if(e)e.textContent=PB.leg.length+'/2200 carac
 async function pAdd(fs){PB.msg='';const lim=PB.tipo=='foto'||PB.tipo=='story'?1:10;if(lim==1)PB.it=[];pOutX();
  for(const f of [...fs]){if(PB.it.length>=lim){pMsg('Máximo de 10 itens.',1);break}const vid=f.type.startsWith('video/');
   if(PB.tipo=='foto'&&vid||PB.tipo=='reels'&&!vid){pMsg(vid?'Para vídeo, escolha "Vídeo/Reels" ou "Carrossel".':'Escolha um arquivo de vídeo.',1);continue}
-  if(vid){if(!/^video\/(mp4|quicktime)$/.test(f.type)){pMsg('O vídeo precisa ser MP4 ou MOV.',1);continue}if(f.size>300e6){pMsg('Vídeo maior que 300 MB.',1);continue}const url=URL.createObjectURL(f);PB.it.push({vid:1,f,url,dur:await vMeta(url),a:0,b:null,tr:'fade',td:.6})}
+  if(vid){if(!/^video\/(mp4|quicktime)$/.test(f.type)){pMsg('O vídeo precisa ser MP4 ou MOV.',1);continue}if(f.size>50e6){pMsg('Vídeo maior que 50 MB (limite do armazenamento gratuito). Comprima ou encurte o vídeo.',1);continue}const url=URL.createObjectURL(f);PB.it.push({vid:1,f,url,dur:await vMeta(url),a:0,b:null,tr:'fade',td:.6})}
   else try{PB.it.push({img:await ldImg(f),z:1,x:.5,y:.5,rot:0,f:'normal',br:100,ct:100,sa:100})}catch(e){pMsg('Não consegui abrir '+f.name+'. Use JPG ou PNG.',1)}}
  PB.sel=Math.max(0,PB.it.length-1);render()}
 async function pTipo(k){if(k==PB.tipo)return;const ok=k=='carrossel'?PB.it:k=='reels'?PB.it.filter(x=>x.vid):k=='story'?PB.it.slice(0,1):PB.it.filter(x=>!x.vid).slice(0,1);pOutX();if(ok.length<PB.it.length&&!(await confirma('Alguns arquivos não servem para este formato e serão removidos. Continuar?','Continuar')))return;const era=PB.tipo;PB.tipo=k;PB.it=ok;PB.sel=0;if(k=='story'){PB.ar='0.5625';PB.inteira=1}else if(era=='story'){PB.ar='o';PB.inteira=0}PB.it.forEach(pDirty);render()}
@@ -506,12 +506,13 @@ async function pMontar(){const C=PB.it,mt=['video/mp4;codecs=avc1.42E01F,mp4a.40
    if(t>=end||c.v.ended){c.v.pause();c.gn.gain.value=0;if(!nx)return ok();if(!nx.on){nx.on=1;nx.v.play().catch(no)}nx.gn.gain.value=1;i++;if(E[i+1])seek(E[i+1]).catch(no)}
    pMsg(`🎬 Montando o vídeo… ${Math.min(99,Math.round((performance.now()-t0)/10/tot))}% (deixe esta aba aberta)`);requestAnimationFrame(fr)}catch(e){no(e)}};requestAnimationFrame(fr)});
   rec.stop();await fim;const f=new File([new Blob(ch,{type:'video/mp4'})],'reels.mp4',{type:'video/mp4'});
-  if(f.size>300e6)throw new Error('O vídeo final passou de 300 MB. Encurte os trechos.');pOutX();PB.out={vid:1,f,url:URL.createObjectURL(f),dur:tot,opus:!/mp4a/.test(mt)};PB.cap=Math.min(PB.cap,tot)
+  if(f.size>50e6)throw new Error('O vídeo final passou de 50 MB (limite do armazenamento gratuito). Encurte os trechos.');pOutX();PB.out={vid:1,f,url:URL.createObjectURL(f),dur:tot,opus:!/mp4a/.test(mt)};PB.cap=Math.min(PB.cap,tot)
  }finally{E.forEach(e=>{e.v.pause();e.v.removeAttribute('src');e.v.load()});ac.close().catch(()=>{})}}
 async function pGera(){PB.run=1;render();try{await pMontar();pMsg('✅ Vídeo final pronto. Confira a prévia e escolha a capa.')}catch(e){pMsg('❌ '+e.message,1)}finally{PB.run=0;render()}}
 const b64=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=no;r.readAsDataURL(f)});
 async function blobUp(f,ext,onp){const nome='publicar/'+Date.now()+'.'+ext;
  if(ext=='jpg'&&f.size<2.5e6){onp(50);const r=await api('/api/upload',{acao:'enviar',nome,dados:await b64(f)});onp(100);return r.url}
+ if(f.size>50e6)throw new Error('O arquivo tem '+Math.round(f.size/1e6)+' MB e o limite é 50 MB. Encurte ou comprima o vídeo.');
  const tipo=f.type||(ext=='mov'?'video/quicktime':ext=='mp4'?'video/mp4':'image/jpeg'),r=await api('/api/upload',{nome,tipo});
  try{await new Promise((ok,no)=>{const x=new XMLHttpRequest();let last=Date.now();const wd=setInterval(()=>{if(Date.now()-last>45e3)x.abort()},3e3),sai=g=>()=>{clearInterval(wd);g()};
   x.open('PUT',r.uploadUrl);x.setRequestHeader('Content-Type',tipo);x.upload.onprogress=e=>{last=Date.now();if(e.lengthComputable)onp(e.loaded/e.total*100)};
