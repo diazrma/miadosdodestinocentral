@@ -9,6 +9,7 @@ const { auth, dbGet, dbSet } = require('../lib/db');
 const Z = require('../lib/zap');
 const igual = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && timingSafeEqual(x, y); };
 const S = (v, n) => String(v ?? '').slice(0, n);
+const ULT = { sj: '', t: 0, nome: '' };
 
 module.exports = async (req, res) => {
   try {
@@ -18,8 +19,13 @@ module.exports = async (req, res) => {
       if (req.method === 'GET') return res.json({ msgs: await Z.puxar() });
       if (b.acao === 'status') {
         const grupos = (Array.isArray(b.grupos) ? b.grupos : []).filter(g => /@g\.us$/.test(g?.id || '')).slice(0, 100).map(g => ({ id: S(g.id, 40), nome: S(g.nome, 100) }));
-        await dbSet('zap:status', { estado: S(b.estado, 20), numero: S(b.numero, 20).replace(/\D/g, ''), grupos, visto: Date.now() });
-        return res.json({ nome: (await Z.cfg()).nome });
+        const st = { estado: S(b.estado, 20), numero: S(b.numero, 20).replace(/\D/g, ''), grupos }, sj = JSON.stringify(st);
+        // igual ao último e há menos de 30 min: não acorda o banco
+        if (ULT.sj !== sj || Date.now() - ULT.t > 30 * 60e3) {
+          await dbSet('zap:status', { ...st, visto: Date.now() });
+          Object.assign(ULT, { sj, t: Date.now(), nome: (await Z.cfg()).nome });
+        }
+        return res.json({ nome: ULT.nome });
       }
       if (b.acao === 'devolver') return res.json({ voltaram: await Z.devolver(b.msgs) });
       return res.status(400).json({ erro: 'Ação desconhecida' });

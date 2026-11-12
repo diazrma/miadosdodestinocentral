@@ -10,6 +10,8 @@ const sharp = require('sharp');
 
 const IG = 'https://graph.instagram.com';
 const PASSO = 50;
+// a placa pede a cada 5 min; a resposta fica na memória por 15 min para não acordar o banco grátis à toa
+const GUARDA = 15 * 60e3, CACHE = { dados: null, img: null };
 
 async function igGet(path, q = {}) {
   const u = new URL(IG + path);
@@ -60,13 +62,17 @@ module.exports = async (req, res) => {
   if (!autorizado(req)) return res.status(401).json({ erro: 'Chave inválida' });
   try {
     if (req.query?.img) {
+      if (CACHE.img && Date.now() - CACHE.img.t < GUARDA) { res.setHeader('Content-Type', 'application/octet-stream'); res.setHeader('Cache-Control', 'no-store'); return res.end(CACHE.img.v); }
       const top = (await postsDoMes()).sort((a, b) => (b.like_count || 0) - (a.like_count || 0))[0];
       const img = top && (await capa(top));
       if (!img) return res.status(404).json({ erro: 'Sem imagem' });
+      CACHE.img = { v: img, t: Date.now() };
       res.setHeader('Content-Type', 'application/octet-stream');
       res.setHeader('Cache-Control', 'no-store');
       return res.end(img);
     }
+    // da memória os avisos não se repetem (já foram mostrados)
+    if (CACHE.dados && Date.now() - CACHE.dados.t < GUARDA) { res.setHeader('Cache-Control', 'no-store'); return res.json({ ...CACHE.dados.v, avisos: [] }); }
     const me = await igGet('/me', { fields: 'username,followers_count,follows_count,media_count' });
     const posts = await postsDoMes();
     const top = posts.sort((a, b) => (b.like_count || 0) - (a.like_count || 0))[0];
@@ -81,7 +87,7 @@ module.exports = async (req, res) => {
     await dbSet('painel_seguidores', base).catch(() => {});
 
     res.setHeader('Cache-Control', 'no-store');
-    return res.json({
+    const dados = {
       conta: me.username,
       seguidores: me.followers_count,
       seguindo: me.follows_count,
@@ -91,7 +97,9 @@ module.exports = async (req, res) => {
         : null,
       postsNoMes: posts.length,
       avisos,
-    });
+    };
+    CACHE.dados = { v: dados, t: Date.now() };
+    return res.json(dados);
   } catch (e) {
     return res.status(502).json({ erro: e.message });
   }

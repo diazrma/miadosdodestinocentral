@@ -85,3 +85,12 @@ test('faixa de índices no estilo Redis', () => {
   assert.strictEqual(faixa(5, 6, 10), null);
   assert.strictEqual(faixa(0, 0, -1), null);
 });
+
+test('erro de conexão tenta de novo; erro de comando não', () => {
+  const { deConexao } = require('../lib/pgkv').interno;
+  assert.strictEqual(deConexao(Object.assign(new Error(''), { code: 'ECONNRESET' })), true);
+  assert.strictEqual(deConexao(Object.assign(new Error('terminating connection'), { code: '57P01' })), true);
+  assert.strictEqual(deConexao(new Error('')), true);
+  assert.strictEqual(deConexao(new Error('WRONGTYPE Operation against a key holding the wrong kind of value')), false);
+  assert.strictEqual(deConexao(Object.assign(new Error('syntax'), { code: '42601' })), false);
+});
