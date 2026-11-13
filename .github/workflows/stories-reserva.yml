@@ -1,0 +1,71 @@
+# Reserva dos stories: quando a Vercel está fora do ar (conta pausada, resposta 402), o GitHub roda os mesmos
+# agendamentos da Central com o mesmo código (ferramentas/rodar-rota.js). Com a Vercel no ar, sai sem fazer nada.
+# Horários iguais aos do vercel.json (UTC). Cada rota já publica no máximo uma vez por dia, então rodar de novo não duplica.
+name: Stories (reserva)
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 9h  Sussurro do dia + story
+    - cron: '0 18 * * *'   # 15h Story da loja
+    - cron: '0 15 * * 0'   # 12h de domingo, Varal
+  workflow_dispatch:
+    inputs:
+      rota:
+        description: 'Rota para rodar agora'
+        type: choice
+        options: ['/api/loja?story=1', '/api/sussurro', '/api/varal?post=1', '/api/loja?previa=1']
+      mesmo_com_vercel:
+        description: 'Rodar mesmo se a Vercel estiver no ar'
+        type: boolean
+        default: false
+
+concurrency:
+  group: stories-reserva
+  cancel-in-progress: false
+
+jobs:
+  story:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: A Vercel está no ar?
+        id: vercel
+        run: |
+          s=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 https://miadosdodestinocentral.vercel.app/ || echo 000)
+          echo "Central respondeu $s"
+          if [ "$s" = "402" ] || [ "$s" = "000" ] || [ "$s" -ge 500 ] || [ "${{ inputs.mesmo_com_vercel }}" = "true" ]; then echo "rodar=1" >> "$GITHUB_OUTPUT"; else echo "A Vercel está no ar, ela mesma publica. Nada a fazer."; fi
+      - name: Qual rota
+        id: rota
+        if: steps.vercel.outputs.rodar == '1'
+        run: |
+          r='${{ inputs.rota }}'
+          if [ -z "$r" ]; then
+            case '${{ github.event.schedule }}' in
+              '0 12 * * *') r='/api/sussurro' ;;
+              '0 18 * * *') r='/api/loja?story=1' ;;
+              '0 15 * * 0') r='/api/varal?post=1' ;;
+            esac
+          fi
+          echo "rota=$r" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        if: steps.rota.outputs.rota != ''
+      - uses: actions/setup-node@v4
+        if: steps.rota.outputs.rota != ''
+        with:
+          node-version: 22
+      - if: steps.rota.outputs.rota != ''
+        run: npm ci --no-audit --no-fund
+      - name: Rodar ${{ steps.rota.outputs.rota }}
+        if: steps.rota.outputs.rota != ''
+        run: node ferramentas/rodar-rota.js "${{ steps.rota.outputs.rota }}"
+        env:
+          CRON_SECRET: reserva-github
+          CENTRAL_DATABASE_URL: ${{ secrets.CENTRAL_DATABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          FCM_SERVICE_ACCOUNT: ${{ secrets.FCM_SERVICE_ACCOUNT }}
+          IG_APP_ID: ${{ secrets.IG_APP_ID }}
+          IG_APP_SECRET: ${{ secrets.IG_APP_SECRET }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
